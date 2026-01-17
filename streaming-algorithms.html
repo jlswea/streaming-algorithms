@@ -1,0 +1,2848 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Streaming Algorithms - Full Thesis</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css" />
+  <script
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"
+  type="text/javascript"></script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Streaming Algorithms - Full Thesis</h1>
+</header>
+<h1 id="chap:Introduction">Introduction</h1>
+<p>A data stream is defined by the <span data-acronym-label="its"
+data-acronym-form="singular+short">its</span> as “a sequence of
+digitally encoded signals used to represent information in transmission”
+<span class="citation" data-cites="ITS1996"></span>. According to
+Woodruff <span class="citation" data-cites="Woodruff2014"></span>, data
+is never available as a whole but is divided into distinct items and
+these individual items become available sequentially, i.e., in different
+points at time. The receiver of a data stream cannot control neither the
+order in which data items are presented nor the frequency at which this
+occurs. The individual items themselves, also referred to as tokens or
+elements, may be any kind of data like numbers, cartesian coordinates or
+edges of a graph.</p>
+<p>This form of data accrues when the amount of it is very large or when
+the sequence of data items is ongoing or never ending. The first point
+especially applies to computing devices on the edge like <span
+data-acronym-label="ip"
+data-acronym-form="singular+abbrv">ip</span>-routers, <span
+data-acronym-label="iot"
+data-acronym-form="singular+abbrv">iot</span>-devices or even
+satellites. For these devices it might be desirable or necessary to
+process data locally while also being resource constrained in terms of
+storage and/or bandwidth. Data sets can be so large, relative to the
+respective computing devices memory, that they don’t fit in its
+entirety, thus making random access prohibitively expensive. A data
+stream can exceed the limits of currently accessible long term storage
+media. In this case a compression of the data would be necessary by
+either preprocessing parts of it in real time or by keeping only certain
+items and dropping the rest. A data stream has no upper bound for either
+size or time. This implies that the sequence of data items has a non
+deterministic or non existent time horizon and can hence grow to
+infinity in size.</p>
+<p>Data of this kind is abundant in modern day computing and occurs
+everywhere from financial and economic data to the routing of <span
+data-acronym-label="ip"
+data-acronym-form="singular+abbrv">ip</span>-packets. Concrete examples
+are high energy particle physics experiments at Fermilab or CERN
+generating 40TByte/s or the prevention of <span data-acronym-label="dos"
+data-acronym-form="singular+short">dos</span> attacks. The latter is
+accomplished by scanning network traffic for suspicious flows, i.e., a
+collection of <span data-acronym-label="ip"
+data-acronym-form="singular+abbrv">ip</span>-packets with identical
+values for certain key attributes such as the source and destination
+<span data-acronym-label="ip"
+data-acronym-form="singular+abbrv">ip</span>-address. A flow that
+consists of many SYN packets without corresponding SYN/ACK packets could
+then be reported as a potential partaker in such an attack as pointed
+out by Muthukrishnan <span class="citation"
+data-cites="Muthu2005"></span>.</p>
+<p>Data streams are fundamentally different to conventionally stored
+data and the processing of such streams introduces new challenges from a
+technical as well as from a theoretical perspective.</p>
+<p>This thesis consists of two parts. The first part aims to provide an
+overview of the data streaming field in Chapter <a href="#ch:Background"
+data-reference-type="ref" data-reference="ch:Background">2</a>. This
+includes <a href="#sec:Preliminaries">mathematical preliminaries</a> and
+a brief discussion of <a href="#sec:Techniques">common techniques</a>.
+The main part of the thesis, Chapter <a href="#ch:Frequency"
+data-reference-type="ref" data-reference="ch:Frequency">3</a>,
+thoroughly investigates one of the most prevalent topics in data streams
+– the estimation of individual element’s frequencies. This main problem
+includes the sub problems “finding distinct elements” and “finding the
+majority element” in the stream. These two will be discussed by
+introducing algorithms that provide an exact or approximate solution.
+The structure of this chapter and the links between the sub topics are
+visualized in Figure <a href="#fig:Overview" data-reference-type="ref"
+data-reference="fig:Overview">1.1</a>.</p>
+<figure id="fig:Overview">
+
+<figcaption>Summary of Frequency Estimation <span id="fig:Overview"
+data-label="fig:Overview"></span></figcaption>
+</figure>
+<h1 id="ch:Background">General Background</h1>
+<p>This chapter provides further information on <span
+data-acronym-label="dsa" data-acronym-form="plural+short">dsas</span>
+and their background. Section <a href="#sec:Preliminaries"
+data-reference-type="ref" data-reference="sec:Preliminaries">2.1</a>
+gives a formal model of data streams and further definitions needed for
+the main part in Chapter <a href="#ch:Frequency"
+data-reference-type="ref" data-reference="ch:Frequency">3</a>.
+Section <a href="#sec:Techniques" data-reference-type="ref"
+data-reference="sec:Techniques">2.2</a> provides an introduction of
+commonly used techniques in the design and analysis of <span
+data-acronym-label="dsa"
+data-acronym-form="plural+short">dsas</span>.</p>
+<h2 id="sec:Preliminaries">Preliminaries</h2>
+<p>Streams in the form of physical data, as defined by the <span
+data-acronym-label="its" data-acronym-form="singular+short">its</span>,
+are a real world phenomenon. Mathematical models abstract and reduce the
+properties of such phenomena to only the most relevant ones. Which
+properties are deemed relevant of course depends on the purpose of the
+model. To improve the understanding of streams, a clear mathematical
+definition is needed. This is achieved by translating real constraints
+into a mathematical model.</p>
+<p><span data-acronym-label="dsa"
+data-acronym-form="plural+short">dsas</span> are characterized by the
+way they have access to their input and, according to Muthukrishnan
+<span class="citation" data-cites="Muthu2005"></span>, by the <span
+data-acronym-label="tcs" data-acronym-form="singular+short">tcs</span>
+environment they operate in. Data can only be accessed in “streaming
+fashion”, i.e., individual items are presented with distinct timing and
+in immutable order. An algorithm is further bounded by at least one of
+the following <span data-acronym-label="tcs"
+data-acronym-form="singular+short">tcs</span> constraints:</p>
+<ul>
+<li><p>Transmission (T) of the complete data set is not
+possible.</p></li>
+<li><p>Computation (C) of some desired output is not possible at the
+rate the input is presented.</p></li>
+<li><p>Storage (S) of the complete data in a computers main memory or
+other local storage media is not possible.</p></li>
+</ul>
+<p>It follows directly from these constraints, that streaming algorithms
+must operate on sublinear space and time complexity. This can be
+described more formally with the following model for data streams.</p>
+<h3 id="subsec:BasicModel">The Streaming Model</h3>
+<p>A data stream describes a signal <span
+class="math inline">\(S\)</span> that is in turn comprised of a sequence
+of items <span class="math inline">\(s_i\)</span>:</p>
+<p><span class="math display">\[S = s_1, s_2, s_3, \ldots,
+s_m\]</span></p>
+<p>Each <span class="math inline">\(s_i\)</span> is drawn from a
+universe <span class="math inline">\(U\)</span> with <span
+class="math inline">\(|U| = n\)</span>, i.e, <span
+class="math inline">\(U\)</span> represents <span
+class="math inline">\(n\)</span> possible values for each <span
+class="math inline">\(s_i\)</span>. The index <span
+class="math inline">\(i\)</span> represents the sequential order in
+which the items are received by algorithm <span
+class="math inline">\(A\)</span>. This order can also be interpreted as
+time, implying <span class="math inline">\(S_i\)</span> to be the signal
+<span class="math inline">\(S\)</span> at time <span
+class="math inline">\(i\)</span> after item <span
+class="math inline">\(s_i\)</span> was made available to the algorithm.
+<span class="math inline">\(A\)</span> takes <span
+class="math inline">\(S\)</span> as input and computes a function <span
+class="math inline">\(\phi\)</span> of <span
+class="math inline">\(S\)</span>, i.e., <span class="math inline">\(A
+\colon S \mapsto \phi(S)\)</span>.</p>
+<p>Following, the usual Bachmann-Landau notation is used to describe the
+asymptotic behaviour of functions and to provide bounds for space and
+time requirements of algorithms.</p>
+<div class="definition">
+<p><strong>Definition 2.1</strong> (Bachmann-Landau notation). <em>Let
+<span class="math inline">\(f\)</span> and <span
+class="math inline">\(g\)</span> be real valued functions and let <span
+class="math inline">\(x &gt; 0\)</span> be a real number. Let</em></p>
+<ul>
+<li><p><em><span class="math inline">\(f(x) = O(g(x))\)</span> denote
+the existence of a constant <span class="math inline">\(c &gt;
+0\)</span> and <span class="math inline">\(x_0 &gt; 0\)</span> such that
+<span class="math inline">\(|f(x)| \leq c |g(x)|\)</span> for all <span
+class="math inline">\(x &gt; x_0\)</span>,</em></p></li>
+<li><p><em><span class="math inline">\(f = \Omega(g)\)</span> be the
+inverse and therefore equivalent to <span class="math inline">\(g =
+O(f)\)</span>,</em></p></li>
+<li><p><em>the simultaneous validity of both <span
+class="math inline">\(f=O(g)\)</span> and <span
+class="math inline">\(g=O(f)\)</span> be denoted as <span
+class="math inline">\(f=\Theta(g)\)</span>, and finally
+let</em></p></li>
+<li><p><em><span class="math inline">\(f(x) = o(g(x))\)</span> denote
+that, for all <span class="math inline">\(c &gt; 0\)</span> there is a
+<span class="math inline">\(x_0 &gt; 0\)</span> such that for all <span
+class="math inline">\(x &gt; x_0\)</span>, <span
+class="math inline">\(|f(x)| &lt; c |g(x)|\)</span> holds.</em></p></li>
+</ul>
+</div>
+<p>In this model, both the size of the input stream <span
+class="math inline">\(|S| = m\)</span> as well as the size of the
+universe <span class="math inline">\(|U| = n\)</span> are determinants
+for the space efficiency of algorithm <span
+class="math inline">\(A\)</span>. The available space is assumed to be
+much smaller than both <span class="math inline">\(m\)</span> and <span
+class="math inline">\(n\)</span>. The baseline demand for any <span
+data-acronym-label="dsa" data-acronym-form="singular+short">dsa</span>
+regarding its space complexity therefore is: The space required for
+processing a stream needs to be smaller than the space needed for the
+input. They are therefore a subset of sublinear algorithms. This yields
+<span class="math inline">\(o(min(m,n))\)</span> as the definitive upper
+bound for space complexity in the streaming scenario. It is often
+assumed that the size of the stream <span
+class="math inline">\(|S|\)</span> is much larger than the number of
+elements in the universe <span class="math inline">\(|U|\)</span>. With
+<span class="math inline">\(m \gg n\)</span>, the upper bound for space
+becomes <span class="math inline">\(o(n)\)</span>.</p>
+<p>The goal for space efficiency would however be a logarithmic
+requirement relative to the size of the universe <span
+class="math inline">\(n\)</span>. <span class="math inline">\(O(\log
+n)\)</span> means an approximate increase in required space by a
+constant number for every doubling in the universe’s size. This allows
+to store a subset of all elements in <span
+class="math inline">\(U\)</span> or a binary counter up to <span
+class="math inline">\(n\)</span>. While <span
+class="math inline">\(O(1)\)</span> is obviously even more desirable,
+<span class="math inline">\(O(\log n)\)</span> is the lower bound for
+indexing and representing signal <span class="math inline">\(S\)</span>,
+as pointed out by Muthukrishnan <span class="citation"
+data-cites="Muthu2005"></span>. When logarithmic space is not
+achievable, the requirements can be relaxed to <span
+class="math inline">\(polylog(n) \coloneqq O((\log n)^k)\)</span> for
+every <span class="math inline">\(k \in \mathbb{N}\)</span>.</p>
+<p>The desiderata for time complexity is usually not as strict as the
+one for space complexity since data streams are mainly characterized by
+the large size of the universe and of the stream itself. An algorithm’s
+time complexity contains the processing time for individual updates,
+denoted as <span class="math inline">\(time_{proc}\)</span>, and the
+time it takes to return the result <span
+class="math inline">\(\phi(S)\)</span> once queried, denoted as <span
+class="math inline">\(time_{comp}\)</span>. Karp et al. <span
+class="citation" data-cites="Karp2003"></span> further divide the
+processing time into <em>amortized</em> <span
+class="math inline">\(time_{proc}\)</span> as the arithmetic mean, and
+<em>worst-case</em> <span class="math inline">\(time_{proc}\)</span> as
+the maximally required time over all items. <span
+data-acronym-label="dsa" data-acronym-form="plural+short">dsas</span>
+are not required to be strictly online as they are allowed to wait,
+store a sequence of consecutive items, and process them in batches.
+However, the more items are stored the worse an algorithm´s space
+requirements get. Even multiple passes over the input data, while
+clearly not desired, are accepted in some cases, as stated by
+Chakrabarti <span class="citation" data-cites="Chakra2020"></span>.</p>
+<div class="definition">
+<p><strong>Definition 2.2</strong> (online algorithm). <em>An algorithm
+<span class="math inline">\(A \colon S \mapsto \phi(S)\)</span> is
+called <em>one-pass</em> or <em>online</em> if each element <span
+class="math inline">\(s_i\)</span> of its input <span
+class="math inline">\(S\)</span> is accessed once and in sequential
+order while computing <span
+class="math inline">\(\phi(S)\)</span>.</em></p>
+</div>
+<p>An online <span data-acronym-label="dsa"
+data-acronym-form="singular+short">dsa</span> stores a data structure
+describing the input signal <span class="math inline">\(S\)</span>. Any
+incoming update is processed instantly and the data structure is updated
+accordingly. This algorithm’s requirement for space only depend on the
+size of the data structure. However, strict requirements for the
+worst-case processing time are introduced. To guarantee that data stream
+items are processed as they arrive, both worst-case and amortized <span
+class="math inline">\(time_{proc}\)</span> must be constant and less
+than the time frame between two subsequent updates.</p>
+<h3 id="subsec:VariationModel">Variations of the Basic Model</h3>
+<p>Building on the basic streaming model described in Section <a
+href="#subsec:BasicModel" data-reference-type="ref"
+data-reference="subsec:BasicModel">2.1.1</a>, there are variations as to
+how the data stream phenomenon is modeled in detail. There are three
+main models for data streams: the <em>Time Series Model</em>, the
+<em>Cash Register Model</em>, and the <em>Turnstile Model</em>. The
+latter is the most general, whereas the <em>Time Series Model</em> makes
+the strongest assumptions and is therefore only applicable for specific
+use cases. A more general model can cover a wide variety of real world
+phenomena. Algorithms using such a model are therefore preferable to the
+ones using a more specific model.</p>
+<h4 id="subsubsec:TimeSeriesModel">The Time Series Model</h4>
+<p>The stream at a discrete point in time <span
+class="math inline">\(i\)</span> is denoted as <span
+class="math inline">\(S_i\)</span> and consists of the sequence of items
+that were made available at or prior to that point in time, thus</p>
+<p><span class="math display">\[S_i = s_1, s_2, \ldots, s_{i-1},
+s_i.\]</span></p>
+<p>The value of <span class="math inline">\(S_i\)</span> for any <span
+class="math inline">\(i\)</span> can either be the value of a single
+item or be the function of several consecutive updates. The former is
+the case in the <em>Time Series Model</em>, where <span
+class="math inline">\(S_i\)</span> is wholly described by <span
+class="math inline">\(s_i\)</span>. <span
+class="math inline">\(S_i\)</span> remains unchanged until the next item
+arrives. The value of the stream at any time <span
+class="math inline">\(i\)</span> is therefore given as the last update
+<span class="math inline">\(s_i\)</span> for all <span
+class="math inline">\(i\)</span> in <span class="math inline">\(\{1,
+\ldots, m\} \coloneqq [m]\)</span>. With the <span
+class="math inline">\(i\)</span>-th update of the stream <span
+class="math inline">\(S[i]\)</span> defined as <span
+class="math inline">\(s_i\)</span>, the following holds for the <em>Time
+Series Model</em>:</p>
+<p><span class="math display">\[S_i = s_i = S[i] \text{ , for all $i$ in
+$[m]$}.\]</span></p>
+<h4 id="subsubsec:CashRegisterModel">The Cash Register Model</h4>
+<p>A data stream is modeled as a sequence of items in the <a
+href="#subsubsec:TimeSeriesModel"><em>Time Series Model</em></a>. This
+retains information on the order at which individual items appeared.
+Data streaming applications like “find the majority element”, “estimate
+the median”, or the computation of some other statistical property,
+however have no need for this information. Only the frequencies of the
+individual elements in the stream are relevant. This allows to represent
+the stream as a vector of aggregated frequencies <span
+class="math inline">\(\bm{f}(S) = (f_1, \ldots, f_n)\)</span> for each
+item in <span class="math inline">\(U\)</span>. The vector <span
+class="math inline">\(\bm{f}\)</span> is initialized to zero and
+subsequently updated via <span class="math inline">\(S\)</span>.</p>
+<p>Every update <span class="math inline">\(s_i\)</span> increases the
+<span class="math inline">\(s_i\)</span>-th component of <span
+class="math inline">\(\bm{f}\)</span> by one. With the length of the
+stream given as <span class="math inline">\(|S| = m\)</span>, for every
+<span class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span> and every <span
+class="math inline">\(j\)</span> in <span
+class="math inline">\([n]\)</span>, this results in</p>
+<p><span class="math display">\[f_j = |\{i \mid s_i = j\}|.\]</span></p>
+<p>After each update <span class="math inline">\(s_i\)</span>, the
+frequency vector <span class="math inline">\(\bm{f}(S_i)\)</span> holds
+the number of occurrences in <span class="math inline">\(S_i\)</span>
+for any element <span class="math inline">\(j\)</span> in <span
+class="math inline">\([n]\)</span>. Since every update causes an
+increment of one, the summation over all <span
+class="math inline">\(f_j\)</span>’s adds up to the length of the
+current stream, i.e., <span class="math inline">\(\sum_{j \in [n]} f_j =
+\left|S_i\right|\)</span>.</p>
+<p>An update from the stream can thus be interpreted as the <span
+class="math inline">\(2\)</span>-tuple <span class="math inline">\(s_i =
+(j, 1)\)</span>. For more general updates, the value of an update’s
+second component can be replaced by a constant <span
+class="math inline">\(c &gt; 0\)</span>. The frequency vector is then
+updated by <span class="math inline">\(S\)</span>, such that for every
+<span class="math inline">\(s_i = (j, c)\)</span></p>
+<p><span class="math display">\[f_j \gets f_j + c.\]</span></p>
+<h4 id="subsubsec:TurnstileModel">The Turnstile Model</h4>
+<p>In the <a href="#subsubsec:CashRegisterModel"><em>Cash Register
+Model</em></a>, <span class="math inline">\(c &gt; 0\)</span> is
+required for all updates. A component of <span
+class="math inline">\(\bm{f}\)</span> can therefore never be decremented
+and can never be negative. The <em>Turnstile Model</em> is similar but
+the update value <span class="math inline">\(c\)</span> can be positive
+or negative. The components of the frequency vector can therefore be
+incremented or decremented by the stream and a negative total value is
+possible. This is not allowed in the <em>strict Turnstile Model</em>,
+where <span class="math inline">\(f_j \geq 0\)</span> for all <span
+class="math inline">\(j\)</span> in <span
+class="math inline">\([n]\)</span> is required. A component can
+therefore only be decremented if it has been incremented by the stream
+before.</p>
+<h3 id="subsec:Accuracy">The Quality of an Algorithm’s Result</h3>
+<p>An algorithm <span class="math inline">\(A\)</span> computes a
+function <span class="math inline">\(\phi\)</span> on the stream <span
+class="math inline">\(S\)</span>. This computation is limited to
+sublinear space in the streaming scenario and typically returns an
+estimate <span class="math inline">\(\phi(S)^*\)</span> rather than the
+true value <span class="math inline">\(\phi(S)\)</span>. The deviation
+between the two values determines the accuracy of the algorithm and is
+denoted as <span class="math inline">\(\varepsilon\)</span>.
+Deterministic algorithms produce an identical result, and therefore
+accuracy, every time they are invoked with the same input value.
+Randomized algorithms use a degree of randomness to achieve a certain
+level of accuracy in the “average case”. The algorithm’s result is
+<em>expected</em> to yield a complying result but there is also a
+probability <span class="math inline">\(\delta\)</span> that this
+expectation fails to materialize. This is formalized in the following
+definitions.</p>
+<div id="def:Approx" class="definition">
+<p><strong>Definition 2.3</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em></em></p>
+<p><em>Let <span class="math inline">\(S\)</span> be a stream and <span
+class="math inline">\(\phi(S)\)</span> be the output of a deterministic
+algorithm <span class="math inline">\(A \colon S \mapsto
+\phi(S)\)</span>. Let further <span
+class="math inline">\(\phi^*(S)\)</span> be the output of a randomized
+algorithm <span class="math inline">\(A^* \colon S \mapsto
+\phi^*(S)\)</span>. For any given <span
+class="math inline">\(\varepsilon \geq 0\)</span> and <span
+class="math inline">\(0 \leq \delta \leq 1\)</span> is <span
+class="math inline">\(A^*\)</span> defined to <span
+class="math inline">\((\varepsilon, \delta)\)</span>-approximate <span
+class="math inline">\(\phi(S)\)</span> if</em></p>
+<p><em><span class="math display">\[Pr \left[ \left|
+\frac{\phi^*(S)}{\phi(S)} - 1 \right| &gt; \varepsilon \right] \leq
+\delta.\]</span></em></p>
+<p><em><span class="math inline">\(\phi^*(S)\)</span> is defined as the
+<span class="math inline">\((\varepsilon, \delta)\)</span>-approximation
+of <span class="math inline">\(\phi(S)\)</span> accordingly.</em></p>
+</div>
+<p>Rearranging Definition <a href="#def:Approx"
+data-reference-type="ref" data-reference="def:Approx">2.3</a> yields a
+more intuitive formalization and interpretation. Let the event <span
+class="math inline">\(\left| \frac{\phi^*(S)}{\phi(S)} - 1 \right| &gt;
+\varepsilon\)</span> be named as <span class="math inline">\(E\)</span>.
+Then <span class="math inline">\(E\)</span> is clearly equivalent to
+<span class="math inline">\(\left| \phi^*(S) - \phi(S) \right| &gt;
+\varepsilon \cdot \phi(S)\)</span> and the absolute value further allows
+for two possible cases:</p>
+<p><span class="math display">\[E =
+    \begin{cases}
+        \phi^*(S) &gt; (1 + \varepsilon) \cdot \phi(S), &amp; \text{if }
+\phi(S) \geq \phi^*(S) \\
+        \phi^*(S) &lt; (1 - \varepsilon) \cdot \phi(S), &amp; \text{if }
+\phi(S) &lt; \phi^*(S).
+    \end{cases}\]</span> These cases describe whether the estimate <span
+class="math inline">\(\phi^*(S)\)</span> is outside an interval of
+confidence <span class="math inline">\(I\)</span> between <span
+class="math inline">\((1-\varepsilon) \cdot \phi(S)\)</span> and <span
+class="math inline">\((1+\varepsilon) \cdot \phi(S)\)</span>. The
+probability that one of the two cases occur is hence the probability of
+<span class="math inline">\(\phi^*(S)\)</span> being in <span
+class="math inline">\(I\)</span> and is equal to <span
+class="math inline">\(Pr \left[ E \right]\)</span>, namely <span
+class="math inline">\(\delta\)</span>. With this the condition of
+Definition <a href="#def:Approx" data-reference-type="ref"
+data-reference="def:Approx">2.3</a> can be rewritten as</p>
+<p><span class="math display">\[Pr \left[ \phi^*(S) \in \left[
+(1-\varepsilon) \cdot \phi(S), (1+\varepsilon) \cdot \phi(S) \right]
+\right] \leq \delta.\]</span></p>
+<p>Definition <a href="#def:Approx" data-reference-type="ref"
+data-reference="def:Approx">2.3</a> uses a multiplicative approximation.
+For some problems an additive approximation, as defined below, is a more
+sensible option.</p>
+<div class="definition">
+<p><strong>Definition 2.4</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em>Using the same setup as in
+Definition <a href="#def:Approx" data-reference-type="ref"
+data-reference="def:Approx">2.3</a>, <span
+class="math inline">\(\phi^*(S)\)</span> is defined to be an <span
+class="math inline">\((\varepsilon, \delta)^+\)</span>-approximation of
+<span class="math inline">\(\phi(S)\)</span> if</em></p>
+<p><em><span class="math display">\[Pr\left[\left|\phi^*(S) -
+\phi(s)\right| &gt; \varepsilon \right] \leq \delta.\]</span></em></p>
+</div>
+<div id="tab:Characteristics">
+<table>
+<caption><span data-acronym-label="dsa"
+data-acronym-form="singular+abbrv">dsa</span>: Key
+Characteristics</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Characteristics</th>
+<th style="text-align: left;">In Symbols</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">deterministic</td>
+<td style="text-align: left;"><span class="math inline">\(\delta =
+0\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">exact, i.e. <span
+class="math inline">\(f(S) = f^*(S)\)</span></td>
+<td style="text-align: left;"><span class="math inline">\(\varepsilon =
+0\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">randomized</td>
+<td style="text-align: left;"><span class="math inline">\(\varepsilon,
+\delta &gt; 0\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The accuracy parameter <span
+class="math inline">\(\varepsilon\)</span> and the associated
+probability of failure <span class="math inline">\(\delta\)</span> can
+be used to measure the quality of an algorithm’s result. In Combination
+with the parameters of an algorithm’s efficiency – space and time
+complexity and the number of passes over the data – this establishes a
+framework for describing <span data-acronym-label="dsa"
+data-acronym-form="plural+short">dsas</span> accurately. A summary of
+this framework is given in Table <a href="#tab:Framework"
+data-reference-type="ref" data-reference="tab:Framework">2.2</a>. The
+variables <span class="math inline">\(m\)</span> as the size of the
+input and <span class="math inline">\(n\)</span> as the size of the
+universe are used as usual. The columns depict typical values ascending
+in terms of their desirability from left to right. They are motivated by
+the discussion on space and time complexity and on the number of passes
+in Section <a href="#subsec:BasicModel" data-reference-type="ref"
+data-reference="subsec:BasicModel">2.1.1</a> but are arbitrary for the
+accuracy measures.</p>
+<div id="tab:Framework">
+<table>
+<caption><span data-acronym-label="dsa"
+data-acronym-form="singular+abbrv">dsa</span>: Efficiency and
+Quality</caption>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th colspan="3" style="text-align: center;">Desirability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><span>2-4</span> Aspects of
+Efficiency</td>
+<td style="text-align: center;">Possible</td>
+<td style="text-align: center;">Acceptable</td>
+<td style="text-align: center;">Goal</td>
+</tr>
+<tr>
+<td style="text-align: left;">space complexity <span
+class="math inline">\(space\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\(o(m,n)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\(polylog(m,n)\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(O(\log
+(m,n))\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">time complexity <span
+class="math inline">\(time_{proc}\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\(O(m,n)\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(O(\log
+(m,n))\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\(O(1)\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">number of passes <span
+class="math inline">\(P\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(\geq
+3\)</span></td>
+<td style="text-align: center;">2</td>
+<td style="text-align: center;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;">accuracy of results <span
+class="math inline">\((\varepsilon, \delta)\)</span></td>
+<td style="text-align: center;"><span class="math inline">\((0.5,
+0.5)\)</span></td>
+<td style="text-align: center;"><span class="math inline">\((0.05,
+0.05)\)</span></td>
+<td style="text-align: center;"><span class="math inline">\((0,
+0)\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>While smaller values are more desirable for all of the discussed
+measures, they are also used to control each other. A relaxed accuracy
+parameter <span class="math inline">\(\varepsilon\)</span> will result
+in a smaller <span class="math inline">\(\delta\)</span> in most cases.
+Similarly would a reduction in space efficiency, by simply retaining
+more information, yield an improved accuracy. These mutual dependencies
+can be used to adapt an algorithm to different use cases.</p>
+<h4 id="motivational-example">Motivational Example</h4>
+<p>The median for a set of items with at least ordinal scale, like
+numbers, is retrieved by sorting and selecting. The input <span
+class="math inline">\(S = s_1, s_2, s_3, \ldots, s_m\)</span> is first
+sorted in non decreasing order <span class="math inline">\(O = o_1, ...,
+o_m\)</span>. The index <span class="math inline">\(i\)</span>, with
+<span class="math inline">\(1 \le i \le m\)</span>, then represents the
+rank according to the respective scale and the median is obtained
+as:</p>
+<p><span class="math display">\[median(S) =
+    \begin{cases}
+        \frac{o_{m/2} + o_{m/2+1}}{2}, &amp; \text{if $m$ is even} \\
+        o_{\lceil m/2 \rceil}, &amp; \text{if $m$ is odd}
+    \end{cases}\]</span></p>
+<p>Blum et al. <span class="citation" data-cites="Blum1973"></span> show
+that this computation requires linear time in the worst case if <span
+class="math inline">\(S\)</span> is fully accessible in memory. A
+streaming solution, i.e., one that uses only sublinear space, does exist
+as shown by Munro and Paterson <span class="citation"
+data-cites="Munro1980"></span>. With <span
+class="math inline">\(P\)</span> as the number of passes, this solution
+requires at most <span class="math inline">\(O(m^{1/P}(\log m)^{2 -
+2/P})\)</span> space.</p>
+<h2 id="sec:Techniques">Common Techniques</h2>
+<p>Two techniques for improved space efficiency have found widespread
+use – <em>Sampling</em> and <em>Sketching</em>. The former decreases the
+load on <span data-acronym-label="tcs"
+data-acronym-form="singular+short">tcs</span> systems by simply dropping
+items. This method leads to a permanent loss of original information but
+reduces space requirements and update times. In some use cases, this
+still yields satisfactory results. In <em>Sketching</em> on the other
+hand, the updates are not stored directly but are rather used to update
+a data structure – also called a <em>sketch</em>. The <em>sketch</em>
+holds information to describe <span class="math inline">\(S\)</span> and
+is usually problem specific. It provides an accurate solution for one
+problem but cannot be used to solve a different problem. Both methods
+trade off space against a permanent loss of information. While sampling
+is not a great basis for solving most problems, the maintained data can
+generally be used for other problems as well – just as the original
+stream would have been. <em>Sketching</em>, however, provides a more
+powerful primitive for most problems but cannot be used in other cases,
+according to Muthukrishnan <span class="citation"
+data-cites="Muthu2005"></span>.</p>
+<p><em>Sampling</em> is a very intuitive approach but goes along with
+some drawbacks. For most problems, <em>sampling</em> is not suitable
+because the sample size would have to be very large in comparison to the
+domain in order to achieve acceptable results. If the difference in
+required memory between sample and stream is only marginally small, then
+the benefit of using sampled data in the first place is equally small.
+Space saving is, however, not the only use for <em>sampling</em>. The
+streams items might be presented in quick succession, so that an
+algorithm’s processing time doesn’t suffice. Since it is impossible to
+process every single one of the updates, using samples is the next best
+option. Sampled data is also not specific to any problem. The data can
+be used for various applications. However, <em>sampling</em> is only
+possible in the <em>Cash Register Model</em>. In the <em>Turnstile
+Model</em>, an item’s update value can have arbitrary large absolute
+values and a positive or negative sign. The variance of an item’s
+component in the frequency vector is therefore so large that
+<em>sampling</em> would yield poor accuracy or require an infeasible
+sampling rate.</p>
+<p>A <em>sketch</em> is a data structure representing a certain property
+of the underlying data. The space reduction is achieved by reducing the
+dimensionality of the original data. The data structure and the
+particularly desirable property <em>linearity</em> is defined below. In
+this thesis, this technique is used to solve the <span
+class="smallcaps">Frequent-Estimation</span> problem and is applied in
+Section <a href="#subsec:CountSketch" data-reference-type="ref"
+data-reference="subsec:CountSketch">3.5.1</a> – the discussion of the
+CountSketch data structure.</p>
+<div id="def:Sketch" class="definition">
+<p><strong>Definition 2.5</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em>Let <span
+class="math inline">\(\mathcal{S}_1\)</span> and <span
+class="math inline">\(\mathcal{S}_2\)</span> be streams, let <span
+class="math inline">\(D(\cdot)\)</span> be a data structure that is
+maintained via the updates of a stream, and let <span
+class="math inline">\(\mathcal{S}_1 \circ \mathcal{S}_2\)</span> be the
+concatenation of the two streams <span
+class="math inline">\(\mathcal{S}_1\)</span> and <span
+class="math inline">\(\mathcal{S}_2\)</span>. The data structure <span
+class="math inline">\(D(\cdot)\)</span> is called a <em>sketch</em> if
+there is an space-efficient algorithm <span
+class="math inline">\(\upsilon(\cdot)\)</span> that combines <span
+class="math inline">\(D(\mathcal{S}_1)\)</span> and <span
+class="math inline">\(D(\mathcal{S}_1)\)</span> such that</em></p>
+<p><em><span class="math display">\[\upsilon(D(\mathcal{S}_1),
+D(\mathcal{S}_1)) = D(\mathcal{S}_1 \circ
+\mathcal{S}_2).\]</span></em></p>
+</div>
+<div class="definition">
+<p><strong>Definition 2.6</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em>Let <span
+class="math inline">\(S\)</span> be a data stream of size <span
+class="math inline">\(m\)</span>. <span class="math inline">\(S\)</span>
+consists of updates <span class="math inline">\(s_i = (j, c)\)</span>
+with <span class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span> and <span
+class="math inline">\(j\)</span> being drawn from a universe of size
+<span class="math inline">\(n\)</span>. Let further <span
+class="math inline">\(\bm{f}(S) = (f_1, \ldots, f_n)\)</span> be the
+implicitly defined frequency vector obtained by adding <span
+class="math inline">\(c\)</span> to <span
+class="math inline">\(f_j\)</span> for every <span
+class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span>.</em></p>
+<p><em>A data structure <span class="math inline">\(L(S)\)</span> is
+called a <em>linear sketch</em> of <span
+class="math inline">\(S\)</span> with dimension <span
+class="math inline">\(\ell(n)\)</span> if it takes values in a vector
+space of dimension <span class="math inline">\(\ell(n)\)</span> and if
+it is a linear function of <span
+class="math inline">\(\bm{f}(S)\)</span>.</em></p>
+</div>
+<p><em>Universal hashing</em> is a technique used frequently in
+randomized algorithms. It creates independent random variables from the
+stream. These variables can be nicely bounded and subsequently provide a
+confidence interval and the associated probability of failure in the
+form of an <span class="math inline">\((\varepsilon,
+\delta)\)</span>-approximation. This method is defined and described in
+detail in Section <a href="#subsec:Tidemark" data-reference-type="ref"
+data-reference="subsec:Tidemark">3.4.1</a>.</p>
+<p>Another common pattern in randomized algorithms is to first find an
+unbiased estimator of the desired result <span
+class="math inline">\(\phi(S)\)</span>, that is a random variable that
+is <em>expected</em> to be <span class="math inline">\(\phi(S)\)</span>
+but usually retains a high variance. The variance is then bound using
+various results from statistics, mainly the inequalities of <a
+href="#th:Markov">Markov</a> and <a href="#th:Chebyshev">Chebyshev</a>.
+Finally, the variance is reduced by applying the median trick. This
+pattern is used and derived in detail for the Tidemark algorithm in
+Section <a href="#subsec:Tidemark" data-reference-type="ref"
+data-reference="subsec:Tidemark">3.4.1</a> and the CountSketch data
+structure in Section <a href="#subsec:CountSketch"
+data-reference-type="ref" data-reference="subsec:CountSketch">3.5.1</a>.
+The median trick is, in accordance with this pattern, used in both cases
+but is discussed in detail only in Section <a
+href="#subsubsec:MedianTrick" data-reference-type="ref"
+data-reference="subsubsec:MedianTrick">3.4.1.1</a>.</p>
+<h1 id="ch:Frequency">Frequency Related Problems in Data Streams</h1>
+<p>This section will focus on filtering specific items from the stream.
+Those that occur only once, i.e., distinct elements, and those that
+occur frequently when compared to other elements. These are also called
+<em>dominant elements</em> or <em>heavy hitters</em>.</p>
+<p>Section <a href="#sec:FrequentElements" data-reference-type="ref"
+data-reference="sec:FrequentElements">3.1</a> gives the <span
+class="math inline">\(HH()\)</span>-function as a universal way of
+representing the set of frequent or distinct elements, as well as the
+majority element, in <span class="math inline">\(S\)</span>.
+Counter-based algorithms and their results are discussed in detail in
+Section <a href="#sec:FindFrequent" data-reference-type="ref"
+data-reference="sec:FindFrequent">3.2</a> and its sub sections. The
+majority element can be computed exactly and in sublinear space. Using
+the <a href="#alg:OriginalMisraGries">Misra-Gries</a> frequent elements
+can be found approximately. Section <a href="#sec:FrequencyMoments"
+data-reference-type="ref" data-reference="sec:FrequencyMoments">3.3</a>
+introduces an important metric on data streams – Frequency Moments. The
+following sections introduce two fully randomized algorithms. The <a
+href="#alg:Tidemark">Tidemark</a> algorithm in Section <a
+href="#subsec:Tidemark" data-reference-type="ref"
+data-reference="subsec:Tidemark">3.4.1</a> estimates the number of
+distinct elements and the <a href="#alg:CountSketch">CountSketch</a>
+data structure is used to estimate frequent elements in
+<em>Turnstile</em> streams.</p>
+<p>Each subsection discusses one algorithm in detail. The algorithm’s
+functioning and related results are discussed. Every subsection further
+contains an analysis of the algorithm’s space and time complexity. The
+key characteristics of the algorithm will be derived.</p>
+<h2 id="sec:FrequentElements">Frequent Elements in Data Streams</h2>
+<p>The problem of finding frequent elements in a stream is composed of
+two separate problems. First, the frequency <span
+class="math inline">\(f_e\)</span> for each element <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\([n]\)</span> has to be computed and secondly, the
+elements with the highest frequencies have to be selected and returned
+as a set. This set is also referred to as the <em>heavy hitters</em> of
+a stream <span class="math inline">\(S\)</span> by Cormode and
+Hadjieleftheriou <span class="citation" data-cites="Cormode2009"></span>
+and Chakrabarti <span class="citation" data-cites="Chakra2020"></span>.
+It is retrieved by comparing the actual frequencies <span
+class="math inline">\(f_e\)</span> for each <span
+class="math inline">\(e \in S\)</span> with a given threshold frequency
+<span class="math inline">\(t\)</span>.</p>
+<div id="def:HeavyHitters" class="definition">
+<p><strong>Definition 3.1</strong> (<span><span class="citation"
+data-cites="Cormode2009"></span></span>). <em>The frequency of an
+element <span class="math inline">\(e\)</span> in the stream <span
+class="math inline">\(S = s_1, s_2, ... , s_m\)</span> is given
+as</em></p>
+<p><em><span class="math display">\[f_e = |\{i \mid s_i = e\}| \text{,
+for each } i \in [m].\]</span></em></p>
+<p><em>The <em>heavy hitters</em> set of <span
+class="math inline">\(S\)</span> for a given threshold <span
+class="math inline">\(t\)</span> with <span class="math inline">\(0 \leq
+t \leq 1\)</span> is</em></p>
+<p><em><span class="math display">\[HH(t, S) = \{e \mid f(e) &gt; t
+m\}.\]</span></em></p>
+</div>
+<p>A threshold of <span class="math inline">\(t &gt; 50\%\)</span>
+constitutes the <span class="smallcaps">Majority</span> problem. A
+solution to this problem returns either one element – the majority
+element – or <span class="math inline">\(\bot\)</span> as none. As a
+more general problem, <span class="smallcaps">Frequent</span> requires a
+set of the <span class="math inline">\(k\)</span> most frequent items in
+<span class="math inline">\(S\)</span>. Setting <span
+class="math inline">\(t = \frac{1}{k+1}\)</span>, <span
+class="math inline">\(HH(t, S)\)</span> is the expected solution for
+<span class="smallcaps">Majority</span> if <span
+class="math inline">\(k=1\)</span> or <span
+class="smallcaps">Frequent</span> if <span class="math inline">\(1 &lt;
+k &lt; m\)</span>. The number of elements returned is then at most <span
+class="math inline">\(k\)</span>. This is trivially true, since <span
+class="math inline">\(f_e &gt; \frac{1}{k+1} = t\)</span> for every
+<span class="math inline">\(e \in HH(t, S)\)</span> and</p>
+<p><span class="math display">\[|HH(t, S)| \geq k \Rightarrow
+\smashoperator[lr]{\sum_{e=1}^{|HH(t, S)|}} f_e &gt; m.\]</span></p>
+<div id="th:OnePassHH" class="theorem">
+<p><strong>Theorem 3.1</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em>Any one-pass algorithm that
+computes <span class="math inline">\(HH(t, S)\)</span> deterministically
+requires <span class="math inline">\(\Omega(min(m,n))\)</span>
+space.</em></p>
+</div>
+<div class="proof_sketch">
+<p>This follows from an information-theoretic argument given by Cormode
+and Hadjieleftheriou <span class="citation"
+data-cites="Cormode2009"></span>: An algorithm that solves the <span
+class="smallcaps">Majority</span> problem receives a stream <span
+class="math inline">\(S_1\)</span> of length <span
+class="math inline">\(\frac{m}{2}\)</span> as input. The elements <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(\mathcal{S}_1\)</span> are drawn from a universe
+<span class="math inline">\(U\)</span> with <span
+class="math inline">\(|U| = n = \frac{m}{2}\)</span>. Every <span
+class="math inline">\(e\)</span> is distinct in <span
+class="math inline">\(\mathcal{S}_1\)</span>, resulting in a frequency
+of <span class="math inline">\(f_e = 1\)</span> for all <span
+class="math inline">\(e\)</span>. The algorithm then receives another
+stream <span class="math inline">\(\mathcal{S}_2\)</span> of length
+<span class="math inline">\(\frac{m}{2}\)</span>, consisting of only one
+arbitrary element <span class="math inline">\(a\)</span> in <span
+class="math inline">\(U\)</span>. The frequency of <span
+class="math inline">\(a\)</span> in <span
+class="math inline">\(\mathcal{S}_2\)</span> is hence <span
+class="math inline">\(f_a = \frac{m}{2}\)</span>. This is also the
+threshold frequency <span class="math inline">\(t = \frac{m}{2}\)</span>
+in the <span class="smallcaps">Majority</span> problem for the combined
+stream <span class="math inline">\(\mathcal{S} = \mathcal{S}_1 \circ
+\mathcal{S}_2\)</span> of length <span class="math inline">\(m\)</span>.
+The algorithm returns</p>
+<p><span class="math display">\[HH\left(\frac{1}{2}, \mathcal{S}\right)
+=
+    \begin{cases}
+        a, &amp; \text{if } a \in \mathcal{S}_1 \\
+        \bot, &amp; \text{else}. \\
+    \end{cases}\]</span></p>
+<p>Deciding <span class="math inline">\(a \in \mathcal{S}_1\)</span>
+requires all <span class="math inline">\(n\)</span> distinct elements
+<span class="math inline">\(e\)</span> in <span
+class="math inline">\(\mathcal{S}_1\)</span> to be stored, which needs
+<span class="math inline">\(\Omega(min(m,n)) = \Omega(n)\)</span> bits
+of memory.</p>
+</div>
+<p>A similar argument can be given for the generalized <span
+class="smallcaps">Frequent</span> problem. A deterministic and exact
+algorithm requires a complete history of received elements and their
+respective frequencies to be accessible at all times, according to Alon
+et al. <span class="citation" data-cites="Alon1999"></span>. This can be
+accomplished by maintaining a counter up to the stream’s length <span
+class="math inline">\(m\)</span> for every possible element, requiring
+<span class="math inline">\(O(n \cdot \log  m)\)</span> of space.</p>
+<p>Providing memory space of this size becomes infeasible for large
+<span class="math inline">\(n\)</span> or impossible for <span
+class="math inline">\(m=\infty\)</span>. The space requirements of
+deterministic one-pass algorithms can be reduced by estimating the
+solution rather than providing an exact solution. This introduces an
+error and motivates a relaxed <em>heavy hitters</em> definition:</p>
+<div id="def:RelaxedHH" class="definition">
+<p><strong>Definition 3.2</strong> (<span><span class="citation"
+data-cites="Cormode2009"></span></span>). <em>Given an error <span
+class="math inline">\(\varepsilon \leq 1\)</span> and a threshold <span
+class="math inline">\(t \geq 0\)</span>, the relaxed <em>heavy
+hitters</em> set of a stream <span class="math inline">\(S\)</span> with
+length <span class="math inline">\(m\)</span> is</em></p>
+<p><em><span class="math display">\[HH^*(t, S) = \{e \mid f(e) &gt; (t -
+\varepsilon) m\}.\]</span></em></p>
+<p><em>Any frequency estimation algorithm used in computing <span
+class="math inline">\(HH^*\)</span> must therefore return a frequency
+estimate <span class="math inline">\(f_e^*\)</span>, with</em></p>
+<p><em><span class="math display">\[f_e - \varepsilon m \leq f_e^* \leq
+f_e.\]</span></em></p>
+</div>
+<p>The following chapter on counter-based algorithms provides solutions
+to the <span class="smallcaps">Distinct</span>, <span
+class="smallcaps">Frequent</span>, and <span
+class="smallcaps">Majority</span> problems. All three can be solved
+deterministically and precise with two passes but become probabilistic
+if only one pass is allowed. For the <span
+class="smallcaps">Distinct</span> problem this is, however, only a
+theoretical result since such a solution would require <span
+class="math inline">\(O(min(m,n))\)</span> space in the worst case.</p>
+<h2 id="sec:FindFrequent">Finding Frequent Elements: Counter-based
+Algorithms</h2>
+<h3 id="subsec:BoyerMoore">Boyer-Moore Algorithm</h3>
+<p>The first algorithm that could plausibly be used in the streaming
+scenario was presented by Boyer and Moore in 1980 and published in 1991
+in <span class="citation" data-cites="Boyer_1991"></span>. This
+algorithm, <a href="#alg:mjrty">MJRTY</a>, returns <span
+class="math inline">\(HH(\frac{1}{2}, S)\)</span> if a majority element
+exists. If <span class="math inline">\(HH(\frac{1}{2}, S) =
+\emptyset\)</span> an arbitrary element is returned.</p>
+<div class="algorithm">
+<p><span class="math inline">\(c_m \gets s_i\)</span> <span
+class="math inline">\(c_f \gets 1\)</span></p>
+</div>
+<p>The algorithm’s functioning is based on a pairing argument. If a
+majority element exists, its frequency would be larger than the
+frequency for all other elements <span class="math inline">\(e\)</span>
+in <span class="math inline">\(S\)</span> combined. The counter <span
+class="math inline">\(c_f\)</span>, after all items have been processed
+by the algorithm, therefore represents</p>
+<p><span class="math display">\[c_f = f_{c_m} - \sum f_e, \ \forall e
+\in S_1.\]</span></p>
+<p>If, however, such an element does not exist, the last majority
+candidate <span class="math inline">\(c_m\)</span> is returned
+nevertheless. This behavior can only be corrected by iterating a second
+time over the data. Then <span class="math inline">\(f_{c_m}\)</span>
+can be computed exactly and the extended algorithm returns</p>
+<p><span class="math display">\[\text{MJRTY}_\text{extended}(S_i) =
+    \begin{cases}
+        c_m, &amp; \text{if } f_{c_m} &gt; \frac{i}{2} \\
+        \bot, &amp; \text{else}. \\
+    \end{cases}\]</span></p>
+<div class="analysis">
+<p>The extended <a href="#alg:mjrty">MJRTY</a> algorithm requires
+constant time to process individual updates <span
+class="math inline">\(s_i\)</span>, i.e., <span
+class="math inline">\(time_{proc} = O(1)\)</span> since maximally two
+comparisons are needed per item. Counting the occurrences of <span
+class="math inline">\(c_m\)</span> in the second pass requires <span
+class="math inline">\(O(m)\)</span> time. After item <span
+class="math inline">\(s_i\)</span> was received the streams length is
+<span class="math inline">\(m = i\)</span>, resulting in a computing
+time of <span class="math inline">\(time_{comp} = O(i)\)</span>. The
+first pass needs space for storing the majority candidate <span
+class="math inline">\(c_m\)</span> and a counter for the relative
+frequency <span class="math inline">\(c_f\)</span> with a maximal value
+of <span class="math inline">\(m\)</span>. Storing <span
+class="math inline">\(c_m\)</span> requires a constant amount of bits –
+namely the maximum size of the streams updates <span
+class="math inline">\(s_i\)</span>. Maintaining <span
+class="math inline">\(c_f\)</span> needs <span
+class="math inline">\(O(\log m)\)</span> space, which is then also the
+total space complexity of the algorithm.</p>
+</div>
+<h3 id="subsec:MisraGries">Misra-Gries Algorithm</h3>
+<p>Misra and Gries introduced an algorithm to solve the generalization
+of the <span class="smallcaps">Majority</span> problem – the <span
+class="smallcaps">Frequent</span> problem – in 1982 <span
+class="citation" data-cites="Misra_1982"></span>. For their modification
+of the original algorithm Karp et al. <span class="citation"
+data-cites="Karp2003"></span> later proved a space complexity of <span
+class="math inline">\(O(k)\)</span> and constant worst-case time
+requirements for processing items, i.e., <span
+class="math inline">\(time_{proc}(s_i) = O(1)\)</span> for all <span
+class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span>. Deriving <span
+class="math inline">\(time_{comp}(S) = O(m)\)</span> from this, shows
+that this is a better result than the one by Misra and Gries <span
+class="citation" data-cites="Misra_1982"></span>: <span
+class="math inline">\(O(m \cdot \log k)\)</span>. The algorithm is very
+similar to the <a href="#alg:mjrty">MJRTY</a> algorithm but instead of a
+single counter, <span class="math inline">\(k\)</span> counters for the
+<span class="math inline">\(k\)</span> most frequent elements in <span
+class="math inline">\(S\)</span> are stored and maintained. Theorem <a
+href="#th:Pairing" data-reference-type="ref"
+data-reference="th:Pairing">3.2</a> is a generalization of the pairing
+argument given in Section <a href="#subsec:BoyerMoore"
+data-reference-type="ref" data-reference="subsec:BoyerMoore">3.2.1</a>
+and is used to illustrate the principle of counter-based algorithms for
+finding frequent elements in streams. The following definitions are
+needed.</p>
+<p>The usual set notation is used both for sets and multisets. This
+definition is an extended version of the similarly defined frequency
+vector <span class="math inline">\(\bm{f}\)</span> of streams in the
+<em>Cash Register</em> or <em>Turnstile Model</em>.</p>
+<div id="def:multiset" class="definition">
+<p><strong>Definition 3.3</strong> (multiset). <em>A multiset <span
+class="math inline">\(MS\)</span> is a 2-tuple <span
+class="math inline">\((C, \bm{m})\)</span> where <span
+class="math inline">\(C\)</span> is a set of distinct elements <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(MS\)</span> and <span
+class="math inline">\(\bm{m}\)</span> is a vector holding the number of
+occurrences for each element <span class="math inline">\(e\)</span> in
+<span class="math inline">\(MS\)</span>. With elements drawn from an
+universe <span class="math inline">\(U\)</span>, the size of <span
+class="math inline">\(\bm{m}\)</span> is given as <span
+class="math inline">\(|U|\)</span> and <span
+class="math inline">\(|C|\)</span> components have a value above <span
+class="math inline">\(0\)</span>. The number of occurrences is called
+the <em>multiplicity</em> <span
+class="math inline">\(\bm{m}_{MS}(e)\)</span> of <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(MS\)</span>.</em></p>
+<p><em>The set of distinct elements <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(MS\)</span> is called its <em>support</em>,
+yielding</em></p>
+<p><em><span class="math display">\[support(MS) \coloneqq \{e \in U \mid
+\bm{m}_{MS}(e) &gt; 0\} = C.\]</span></em></p>
+<p><em>The total number of instances over all elements is defined
+as</em></p>
+<p><em><span class="math display">\[|MS| \coloneqq \sum_{e \in
+support(MS)} \bm{m}_{MS}(e).\]</span></em></p>
+<p><em>A union of two multisets <span class="math inline">\(MS_1 = (C_1,
+\bm{m}_1)\)</span> and <span class="math inline">\(MS_2 = (C_2,
+\bm{m}_2)\)</span> is defined as</em></p>
+<p><em><span class="math display">\[MS_1 \cup MS_2 \coloneqq (C_1 \cup
+C_2, \bm{m}_1 + \bm{m}_2).\]</span></em></p>
+</div>
+<div id="def:Distinct" class="definition">
+<p><strong>Definition 3.4</strong>. <em>The distinct elements <span
+class="math inline">\(D\)</span> of a stream <span
+class="math inline">\(S\)</span> is a set of elements <span
+class="math inline">\(e\)</span> from the universe <span
+class="math inline">\(U\)</span> that occur with a frequency <span
+class="math inline">\(f_e \geq 1\)</span> in <span
+class="math inline">\(S\)</span>: <span class="math display">\[D(S) =
+\{e \mid f_e \geq 1, \forall e \in U\}\]</span></em></p>
+</div>
+<p>The <span class="smallcaps">Distinct</span> problem is concerned with
+finding the set of distinct elements. One part of the problem – <span
+class="smallcaps">Distinct-Estimation</span> – will be discussed in
+detail in Section <a href="#sec:DistinctEstimation"
+data-reference-type="ref"
+data-reference="sec:DistinctEstimation">3.4</a> but as Definition <a
+href="#def:Distinct" data-reference-type="ref"
+data-reference="def:Distinct">3.4</a> is needed already in this section,
+it is noteworthy to point out that <span
+class="smallcaps">Distinct</span>, just like <span
+class="smallcaps">Majority</span> is a special case of <span
+class="smallcaps">Frequent</span>. As such the <a
+href="#def:HeavyHitters"><span class="math inline">\(HH(t,
+S)\)</span></a> function describes a solution by setting the threshold
+<span class="math inline">\(t = \frac{1}{k+1}\)</span> accordingly. For
+any multiset <span class="math inline">\(A\)</span> with <span
+class="math inline">\(|support(A)| = m\)</span>, <span
+class="math inline">\(HH(\frac{1}{k + 1}, A)\)</span> returns maximally
+<span class="math inline">\(k\)</span> elements, where each element’s
+frequency is above <span class="math inline">\(\frac{m}{k + 1}\)</span>.
+For <span class="math inline">\(k=m\)</span> this returns maximally
+<span class="math inline">\(m\)</span> distinct elements – if no copies
+occur in <span class="math inline">\(A\)</span>. The elements are
+distinct because they satisfy <span class="math inline">\(\{e \mid f(e)
+&gt; \frac{m}{m + 1} &gt; 1, \forall e \in U\}\)</span> of Definition <a
+href="#def:Distinct" data-reference-type="ref"
+data-reference="def:Distinct">3.4</a>. An overview of different
+frequency related problems and their solutions represented as an
+instance of <span class="math inline">\(HH()\)</span> is given in
+Table <a href="#tab:Frequent" data-reference-type="ref"
+data-reference="tab:Frequent">3.1</a>.</p>
+<div id="tab:Frequent">
+<table>
+<caption>Representing Solutions for <span
+class="smallcaps">Majority</span>, <span
+class="smallcaps">Frequent</span>, <span
+class="smallcaps">Distinct</span> via <a href="#def:HeavyHitters"><span
+class="math inline">\(HH(\cdot)\)</span></a></caption>
+<thead>
+<tr>
+<th style="text-align: left;">Variables of the Solution</th>
+<th style="text-align: center;"><span
+class="smallcaps">Majority</span></th>
+<th style="text-align: center;"><span
+class="smallcaps">Frequent</span></th>
+<th style="text-align: center;"><span
+class="smallcaps">Distinct</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">cardinality <span
+class="math inline">\(k\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\(1\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(1 &lt; k
+&lt; m\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\(m\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">threshold <span
+class="math inline">\(t\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(\frac{1}{1 +
+1} = \frac{1}{2}\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(\frac{1}{2}
+&lt; \phi &lt; \frac{1}{m + 1}\)</span></td>
+<td style="text-align: center;"><span class="math inline">\(\frac{1}{m +
+1}\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="def:Reduce" class="definition">
+<p><strong>Definition 3.5</strong> (<span><span class="citation"
+data-cites="Misra_1982"></span></span>). <em>Let <span
+class="math inline">\(reduce_r(k, A)\)</span> be a function that
+operates on an integer <span class="math inline">\(k\)</span> and a
+multiset <span class="math inline">\(A\)</span> as input. The function
+returns another multiset <span class="math inline">\(B\)</span>, that is
+retrieved from <span class="math inline">\(A\)</span> by repeatedly
+removing <span class="math inline">\(k\)</span> distinct elements, until
+either <span class="math inline">\(|support(B)| \leq |B| &lt; k\)</span>
+or the maximal recursion depth <span class="math inline">\(r\)</span> is
+reached. If <span class="math inline">\(r\)</span> is omitted, then the
+default behavior is <span class="math inline">\(reduce(k, A) =
+reduce_{\infty}(k, A)\)</span>.</em></p>
+</div>
+<div class="example">
+<p>Given a multiset <span class="math inline">\(A = \{1, 1, 2, 3,
+3\}\)</span>, the result of <span class="math inline">\(reduce(2,
+A)\)</span> may be any one of the following sets: <span
+class="math inline">\(\{1\}\)</span>, <span
+class="math inline">\(\{2\}\)</span>, <span
+class="math inline">\(\{3\}\)</span>. The definite result emerges from a
+random recursive decent, with equal probabilities at each step.</p>
+<figure id="fig:Reduce">
+
+<figcaption>Recursive Descend of <em>reduce()</em></figcaption>
+</figure>
+</div>
+<p>The correctness of the Misra-Gries algorithm is based on the
+generalized pairing argument, formalized in the following theorem.</p>
+<div id="th:Pairing" class="theorem">
+<p><strong>Theorem 3.2</strong> (<span><span class="citation"
+data-cites="Misra_1982"></span></span>). <em>Given a multiset <span
+class="math inline">\(A\)</span> containing <span
+class="math inline">\(m\)</span> elements. Only elements in <span
+class="math inline">\(reduce(k+1, A)\)</span> may occur more than <span
+class="math inline">\(\frac{m}{k+1}\)</span> times in <span
+class="math inline">\(A\)</span>.</em></p>
+</div>
+<div class="proof">
+<p><em>Proof.</em> Let <span class="math inline">\(A\)</span> be a
+multiset containing <span class="math inline">\(m\)</span> elements.
+Deleting <span class="math inline">\(k+1\)</span> elements from <span
+class="math inline">\(A\)</span> can be done for a maximum of <span
+class="math inline">\(\frac{m}{k+1}\)</span> times, since <span
+class="math inline">\(|A| &lt; k+1\)</span> after the <span
+class="math inline">\(\frac{m}{k+1}\)</span>-th deletion. The number of
+distinct elements <span class="math inline">\(e\)</span> in <span
+class="math inline">\(A\)</span> is always less or equal to the number
+of total items in <span class="math inline">\(A\)</span>:</p>
+<p><span class="math display">\[\label{eq:PairingProof}
+        |support(A)| = HH\left(\frac{1}{m+1}, A\right) \leq |A| &lt;
+k+1\]</span></p>
+<p><span class="math inline">\(reduce()\)</span> stops and returns a
+reduced multiset if Equation <a href="#eq:PairingProof"
+data-reference-type="ref"
+data-reference="eq:PairingProof">[eq:PairingProof]</a> is true. Any
+element left in <span class="math inline">\(R = reduce(k + 1,
+A)\)</span> has been deleted between <span
+class="math inline">\(0\)</span> and <span
+class="math inline">\(\frac{m}{k + 1}\)</span> times. Therefore an
+element in <span class="math inline">\(R\)</span> can have a frequency
+<span class="math inline">\(_e\)</span>, where <span
+class="math inline">\(1 \leq f_e \leq m\)</span>, but any element that
+was deleted through <span class="math inline">\(reduce()\)</span> cannot
+have a frequency above <span class="math inline">\(\frac{m}{k +
+1}\)</span>. Thus, for any multiset <span
+class="math inline">\(A\)</span>, there is no <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(A\)</span> such that <span
+class="math inline">\(e\)</span> is in <span
+class="math inline">\(reduce(k+1, A)\)</span> and <span
+class="math inline">\(f_e &gt; \frac{m}{k + 1}\)</span>. ◻</p>
+</div>
+<p>The original algorithm given by Misra and Gries <span
+class="citation" data-cites="Misra_1982"></span> makes direct use of
+Definition <a href="#def:Reduce" data-reference-type="ref"
+data-reference="def:Reduce">3.5</a> and Theorem <a href="#th:Pairing"
+data-reference-type="ref" data-reference="th:Pairing">3.2</a> and is
+described in detail as Algorithm <a href="#alg:OriginalMisraGries"
+data-reference-type="ref"
+data-reference="alg:OriginalMisraGries">[alg:OriginalMisraGries]</a>
+given below. The Misra-Gries algorithm solves both the frequency
+estimation subproblem and the <span class="smallcaps">Frequent</span>
+problem at the same time. The multiset <span
+class="math inline">\(D\)</span>, that is returned by the Misra-Gries
+algorithm, holds an approximate solution to the <span
+class="smallcaps">Frequent</span> problem. The estimated set of frequent
+items <span class="math inline">\(HH^*\)</span> is given as the set of
+distinct elements <span class="math inline">\(support(D)\)</span> and
+the multiplicity of an element <span class="math inline">\(e\)</span> in
+<span class="math inline">\(D\)</span> represents the frequency estimate
+<span class="math inline">\(f_e^*\)</span>.</p>
+<p>The <span class="smallcaps">Frequent</span> problem expects the <span
+class="math inline">\(k\)</span> most frequent distinct elements <span
+class="math inline">\(e\)</span> from a stream <span
+class="math inline">\(S\)</span>. The relative error <span
+class="math inline">\(\varepsilon\)</span> of the estimated solution is
+controlled by <span class="math inline">\(k\)</span>, such that <span
+class="math inline">\(\varepsilon = \frac{1}{k + 1}\)</span>. This is
+derived from the following intuition: The higher <span
+class="math inline">\(k\)</span> the more counts of elements <span
+class="math inline">\(e\)</span> have to be estimated. This uses more
+space and thus keeps more information, which in turn reduces the chance
+for an error. More formally the bounds for <span
+class="math inline">\(f_e^*\)</span> are given in Theorem <a
+href="#th:MisraGries" data-reference-type="ref"
+data-reference="th:MisraGries">3.3</a>.</p>
+<div id="th:MisraGries" class="theorem">
+<p><strong>Theorem 3.3</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em>Let <span
+class="math inline">\(e\)</span> be an arbitrary token in <span
+class="math inline">\([n]\)</span> and let <span class="math inline">\(k
+&gt; 0\)</span> be a constant integer. The <a
+href="#alg:OriginalMisraGries">Misra-Gries algorithm</a> provides an
+estimate <span class="math inline">\(f_e^*\)</span> of the true value
+<span class="math inline">\(f_e\)</span>, satisfying</em></p>
+<p><em><span class="math display">\[f_e - \frac{m}{k+1} \leq f_e^* \leq
+f_e.\]</span></em></p>
+</div>
+<div class="proof">
+<p><em>Proof.</em> The upper and the lower bound can be proved
+separately.</p>
+<p>Case <span class="math inline">\(f_e^* \leq f_e\)</span>: The
+multiplicity of <span class="math inline">\(e\)</span> is increased if
+and only if the stream’s current item <span
+class="math inline">\(s_i\)</span> matches <span
+class="math inline">\(e\)</span>. Hence an increase to the true
+frequency <span class="math inline">\(f_e\)</span> of one will
+deterministically cause an increase of one in the estimated frequency
+<span class="math inline">\(f_e^*\)</span>.</p>
+<p>Case <span class="math inline">\(f_e^* \geq f_e - \frac{m}{k +
+1}\)</span>: An error in the estimation may only occur when <span
+class="math inline">\(|support(D)| &gt; k\)</span>, since this would
+invoke <span class="math inline">\(reduce()\)</span>. If an element
+<span class="math inline">\(e\)</span> in <span
+class="math inline">\(D\)</span> had, at one point, a multiplicity <span
+class="math inline">\(\bm{m}_D(e) &gt; 0\)</span> and this <span
+class="math inline">\(\bm{m}_D(e)\)</span> was later decremented by the
+algorithm but remained above zero, <span
+class="math inline">\(\bm{m}_D(e) = f_e^*\)</span> deviates from the
+true total frequency <span class="math inline">\(f_e\)</span>. This is
+because <span class="math inline">\(\bm{m}_D(e)\)</span>, at this point,
+represents the relative frequency of <span
+class="math inline">\(e\)</span> in comparison to other frequent items.
+This relative frequency is obtained solely by decrementing by one for a
+maximum of <span class="math inline">\(\frac{m}{k+1}\)</span> times.</p>
+<p>Put together this satisfies Definition <a href="#def:RelaxedHH"
+data-reference-type="ref" data-reference="def:RelaxedHH">3.2</a> and
+proves Theorem <a href="#th:MisraGries" data-reference-type="ref"
+data-reference="th:MisraGries">3.3</a>. ◻</p>
+</div>
+<div class="algorithm">
+<p><span class="math inline">\(c_d \gets 0\)</span> <span
+class="math inline">\(D \gets \{\}\)</span></p>
+</div>
+<p>The analysis of this algorithm requires the definition of the AVL
+data structure.</p>
+<div id="def:AVL" class="definition">
+<p><strong>Definition 3.6</strong> (Georgy Adelson-Velsky &amp; Evgenii
+Landis, 1962). <em>A AVL tree is a data structure named after its
+inventors Georgy Adelson-Velsky and Evgenii Landis.</em></p>
+<p><em>The basic tree <span class="math inline">\(T\)</span> is defined
+as <span class="math inline">\(T = (V, E)\)</span> where <span
+class="math inline">\(V\)</span> is a set of vertices or nodes <span
+class="math inline">\(v \in V\)</span> and <span
+class="math inline">\(E\)</span> is a set of edges <span
+class="math inline">\(e \in E\)</span> between two vertices <span
+class="math inline">\(v_1\)</span> and <span
+class="math inline">\(v_2\)</span>, given as <span
+class="math inline">\(e = (v_1, v_2)\)</span>. An edge describes a
+relation between a parent node <span class="math inline">\(v_1\)</span>
+and a child node <span class="math inline">\(v_2\)</span>. Nodes can
+contain either a single key or a tuple of a key and an additional value.
+A root node <span class="math inline">\(r\)</span> has no parents, i.e.,
+<span class="math display">\[\forall v \in V \ \nexists e \in E \colon e
+= (v, r)\]</span> while a leaf node <span
+class="math inline">\(f\)</span> has no children, such that <span
+class="math display">\[\forall v \in V \ \nexists e \in E \colon e = (l,
+v).\]</span> The height of a tree <span
+class="math inline">\(h(T)\)</span> is then given as the longest path
+between the root node <span class="math inline">\(r\)</span> and a leaf
+<span class="math inline">\(l\)</span>. A path <span
+class="math inline">\(P(r, l) = v_1 , \dots , v_{i-1}, v_i\)</span> is a
+sequence of nodes where <span class="math inline">\(r = v_1\)</span> and
+<span class="math inline">\(l = v_i\)</span> and every consecutive two
+nodes share an edge: <span class="math display">\[\forall v_j \in P(r,l)
+\ \exists e \in E \colon e = (v_j, v_{j+1}).\]</span></em></p>
+<p><em>A tree <span class="math inline">\(T\)</span> is a AVL tree if
+the following conditions are fulfilled:</em></p>
+<ul>
+<li><p><em><span class="math inline">\(T\)</span> is a <em>binary
+tree</em>: Every node <span class="math inline">\(v \in V\)</span> has a
+maximum of two children.</em></p></li>
+<li><p><em><span class="math inline">\(T\)</span> is a <em>binary search
+tree</em>, i.e., for every given node <span class="math inline">\(v \in
+V\)</span> contains the left subtree only keys that are smaller than all
+keys contained in the right subtree.</em></p></li>
+<li><p><em>For every node <span class="math inline">\(v \in V\)</span>:
+The difference of the left subtrees height and of the right subtrees
+height is the <span class="math inline">\(v\)</span>’s balance factor
+<span class="math inline">\(BF(v)\)</span> and <span
+class="math inline">\(|BF(v)| \leq 1\)</span>.</em></p></li>
+</ul>
+</div>
+<div class="analysis">
+<p>Misra and Gries <span class="citation"
+data-cites="Misra_1982"></span> implement the multiset <span
+class="math inline">\(D = (support(D), \bm{m}_D)\)</span> as an AVL tree
+with <span class="math inline">\(c_d = |support(D)| = k+1\)</span>
+nodes. Each node <span class="math inline">\(j\)</span>, with <span
+class="math inline">\(1 \leq j \leq k+1\)</span>, is a tuple <span
+class="math inline">\((v_j, c_j)\)</span> where <span
+class="math inline">\(v_j\)</span> in <span
+class="math inline">\(support(D)\)</span> is the value of an distinct
+element in <span class="math inline">\(D\)</span> and <span
+class="math inline">\(c_j = \bm{m}_D(v_j)\)</span> is its multiplicity.
+This takes <span class="math inline">\(\lfloor \log n \rfloor +
+1\)</span> space for each value <span class="math inline">\(v_j\)</span>
+and <span class="math inline">\(\lfloor \log m \rfloor\)</span> + 1 for
+each counter <span class="math inline">\(c_j\)</span>. Since there are
+at most <span class="math inline">\(k\)</span> distinct elements in the
+result, the total space is <span class="math inline">\(O(k \cdot (\log
+(m) + \log (n)))\)</span>.</p>
+<p>Ensuring that all conditions of an AVL tree are maintained throughout
+the insertion and deletion of nodes is called self balancing. This
+requires time to compute but allows for searching, inserting and
+deleting elements in <span class="math inline">\(O(\log k)\)</span>
+worst-case time. The time required for rebalancing the tree once
+necessary is constant and can therefore be attributed to the inserting
+and deleting operations without altering their time complexity
+class.</p>
+<p>The algorithm’s runtime is dominated by the operations on <span
+class="math inline">\(D\)</span>. For every item <span
+class="math inline">\(s_i\)</span> in the input stream <span
+class="math inline">\(S\)</span> the condition <span
+class="math inline">\(s_i \in D\)</span> needs to be checked. This
+requires searching the AVL tree representation of <span
+class="math inline">\(D\)</span>. Since <span
+class="math inline">\(D\)</span> holds a maximum of <span
+class="math inline">\(k+1\)</span> nodes a single search needs <span
+class="math inline">\(O(\log k)\)</span>.</p>
+<p>If <span class="math inline">\(|support(D)| &lt; k+1\)</span> and
+<span class="math inline">\(s_i\)</span> is not in <span
+class="math inline">\(D\)</span> one element has to be inserted into the
+tree. This is done in <span class="math inline">\(O(\log k)\)</span>.
+If, on the other hand <span class="math inline">\(|support(D)| =
+k+1\)</span> and <span class="math inline">\(s_i \notin D\)</span>,
+<span class="math inline">\(reduce_1(k+1, D)\)</span> is invoked
+decrementing <span class="math inline">\(k+1\)</span> elements in
+constant time and deleting a maximum of <span
+class="math inline">\(k+1\)</span> elements in <span
+class="math inline">\(O(k \cdot \log k)\)</span> total time.</p>
+<p>This yields a per item processing time of <span
+class="math inline">\(time_{proc} = O(k \cdot \log k)\)</span> in the
+worst case and an amortized <span class="math inline">\(time_{comp} =
+O(\frac{m}{k} \cdot k \cdot \log k) = O(m \cdot \log k)\)</span> since
+this reduction may occur maximally <span
+class="math inline">\(\frac{m}{k+1}\)</span> times over a stream of
+length <span class="math inline">\(m\)</span>.</p>
+</div>
+<p>A trivial second pass over the data would solve <span
+class="smallcaps">Frequent</span> exactly by calculating <span
+class="math inline">\(f_d\)</span> for every distinct element <span
+class="math inline">\(d\)</span> in <span
+class="math inline">\(support(D)\)</span> and delete every <span
+class="math inline">\(d\)</span> from the solution where <span
+class="math inline">\(f_d &lt; \frac{m}{k}\)</span>. The time and space
+complexity remain the same for this extended Misra-Gries algorithm as
+was the case for the original algorithm.</p>
+<h3 id="subsec:ModifiedMisraGries">Modified Misra-Gries by Karp
+et al.</h3>
+<p>The core information needed for solving <span
+class="smallcaps">Frequent</span> is a set of distinct values and their
+respective frequencies. In the original algorithm given by Misra and
+Gries <span class="citation" data-cites="Misra_1982"></span> these
+values were kept in a multiset. A multiset can be implemented as an AVL
+tree and allows for efficient search, insert, and delete operations –
+all done in logarithmic time depending on the tree’s size.</p>
+<p>Karp et al. <span class="citation" data-cites="Karp2003"></span>
+modify the original account by using a map instead of a set data
+structure. A map <span class="math inline">\(M\)</span> represents a
+number of associations between a set of keys as <span
+class="math inline">\(keys(M)\)</span> and their values <span
+class="math inline">\(M[l]\)</span> with <span
+class="math inline">\(l\)</span> in <span
+class="math inline">\(keys(M)\)</span>. Here, the distinct values are
+keys to their respective frequencies as values. This results slight
+modifications yields Algorithm <a href="#alg:ModifiedMisraGries"
+data-reference-type="ref"
+data-reference="alg:ModifiedMisraGries">[alg:ModifiedMisraGries]</a>. A
+graphical overview of the data structures used both in the original and
+the modified Misra-Gries algorithm is given in Figure <a
+href="#fig:MisraGriesData" data-reference-type="ref"
+data-reference="fig:MisraGriesData">[fig:MisraGriesData]</a>.</p>
+<div class="algorithm">
+<p><span class="math inline">\(M \gets \{\}\)</span></p>
+</div>
+<div id="def:HashTable" class="definition">
+<p><strong>Definition 3.7</strong> (Hash table, based on Knuth
+<span><span class="citation" data-cites="Knuth1998"></span></span>).
+<em>Given a hash function <span class="math inline">\(h: L \to
+I\)</span> that maps keys <span class="math inline">\(l \in L\)</span>
+to hash values <span class="math inline">\(i \in I\)</span> and where
+<span class="math inline">\(|L| \leq |I|\)</span>.</em></p>
+<p><em>A hash table <span class="math inline">\(HT\)</span> is a data
+structure combining hash functions and a strategy for collision
+resolution. A <em>collision</em> occurs if <span
+class="math inline">\(l_1 \neq l_2\)</span> and <span
+class="math inline">\(h(l_1) = h(l_2)\)</span>. The memory space of
+<span class="math inline">\(HT\)</span> is partitioned into individually
+addressable buckets. These buckets hold any amount of key-value pairs
+<span class="math inline">\((l, v)\)</span> and are accessible at <span
+class="math inline">\(h(l)\)</span>. The collision resolution states how
+multiple entries in a bucket are represented, for example as a linked
+list.</em></p>
+</div>
+<p><span class="math inline">\(M\)</span> is implemented as a hash
+table. This yields space in <span class="math inline">\(O(k)\)</span>
+and improves the per item processing time to an <em>amortized</em> <span
+class="math inline">\(time_{proc} = O(1)\)</span> according to Karp
+et al. <span class="citation" data-cites="Karp2003"></span>. The authors
+argue that for each received item <span
+class="math inline">\(s_i\)</span> only a constant number of operations
+are needed if no deletions occur, i.e., while the number of key-value
+pairs in <span class="math inline">\(M\)</span> is below or equal to
+<span class="math inline">\(k\)</span>. In this case the condition <span
+class="math inline">\(s_i \in keys(M)\)</span> needs to be checked,
+which due to <span class="math inline">\(M\)</span>’s implementation as
+a hash table is done in <em>amortized</em> <span
+class="math inline">\(O(1)\)</span>. If deletions occur, the time
+required could be attributed to the original items processing time,
+since only items added as keys may be deleted later on, thus retaining
+<em>amortized</em> constant time.</p>
+<div class="example">
+<p><span id="ex:MisraGriesData" data-label="ex:MisraGriesData"></span>
+Let <span class="math inline">\(E = \{1, 1, 2, 3, 1, 2, 2, 3, 1,
+2\}\)</span> be a multiset. Following Definition <a href="#def:multiset"
+data-reference-type="ref" data-reference="def:multiset">3.3</a>, this
+can be represented as a 2-tuple <span class="math inline">\(E =
+(support(E), \bm{m}_E)\)</span> consisting of the set of distinct
+elements <span class="math inline">\(support(E) = \{1, 2, 3\}\)</span>
+and a vector of the frequency, also called the multiplicity, for each of
+these elements as <span class="math display">\[\bm{m}_E =
+        \begin{pmatrix}
+            m_E(1) \\
+            m_E(2) \\
+            m_E(3)
+        \end{pmatrix}
+        =
+        \begin{pmatrix}
+            4 \\
+            4 \\
+            2
+        \end{pmatrix}
+        .\]</span> The sum of all individual frequencies is equal to the
+total number of elements in <span class="math inline">\(E\)</span>
+denoted as <span class="math inline">\(|E|\)</span>: <span
+class="math display">\[\sum_{e \in [3]} m_E(e) = |E|.\]</span></p>
+<p>In the original Misra-Gries algorithm an AVL tree is used to store
+this information while the algorithm modified by Karp makes use of a
+hash table. The following is a graphical illustration of these two data
+structures representing the multiset <span
+class="math inline">\(E\)</span>.</p>
+<div class="center">
+<div class="minipage">
+
+</div>
+<div class="minipage">
+
+</div>
+</div>
+</div>
+<p>The exact runtime of operations on a hash table depends on their
+concrete implementation, i.e., the choice of hash function and the
+collision resolution. Nevertheless, it can be regarded to be <span
+class="math inline">\(O(1)\)</span> on average for searching, inserting
+and deleting. Searching <span class="math inline">\(HT\)</span> for
+<span class="math inline">\((l, v)\)</span> is described in Algorithm <a
+href="#alg:HT" data-reference-type="ref"
+data-reference="alg:HT">[alg:HT]</a>, due in part to Knuth’s Algorithm C
+<span class="citation" data-cites="Knuth1998"></span>:</p>
+<div class="algorithm">
+<p><span class="math inline">\(i \gets h(l)\)</span></p>
+</div>
+<p>The runtime of Algorithm <a href="#alg:HT" data-reference-type="ref"
+data-reference="alg:HT">[alg:HT]</a> is dominated by the runtime of the
+hash function <span class="math inline">\(h\)</span> in line 1 to
+compute the index <span class="math inline">\(i\)</span> and by the for
+loop, iterating over all possible values in bucket <span
+class="math inline">\(HT(i)\)</span>, in line 3. The hash functions time
+complexity can be considered constant, but the number of operations
+required in the for loop depend on <span
+class="math inline">\(HT\)</span>’s load factor <span
+class="math inline">\(\alpha\)</span> and probability. The load factor
+is <span class="math inline">\(\alpha = \frac{k}{B}\)</span> with <span
+class="math inline">\(k\)</span> being the maximum number of reported
+elements as usual and <span class="math inline">\(B\)</span> being the
+number of buckets in <span class="math inline">\(HT\)</span>, i.e.,
+<span class="math display">\[h(l) = i \colon l \in [k] \text{ and } i
+\in [B].\]</span> With <span class="math inline">\(HT\)</span> in <span
+class="math inline">\(O(k)\)</span> there are <span
+class="math inline">\(k\)</span> buckets resulting in <span
+class="math inline">\(\alpha = 1\)</span>. In theory there would be
+enough buckets to assign exactly one key-value pair <span
+class="math inline">\((l, v)\)</span> to one bucket but this assignment
+is done via <span class="math inline">\(h()\)</span> and is therefore
+probabilistic. There are no hash functions guaranteeing collision free
+operation and hence buckets with multiple entries in a bucket have to be
+accounted for. In fact, the worst case performance happens if all keys
+<span class="math inline">\(l \in [k]\)</span> are mapped to the same
+<span class="math inline">\(h(l) = i\)</span>. Then the worst case time
+complexity for processing individual items <span
+class="math inline">\(s_i\)</span> becomes dependent on <span
+class="math inline">\(k\)</span>. If a singly linked list is chosen as
+the collision resolution, <span
+class="math inline">\(time_{proc}\)</span> is in <span
+class="math inline">\(O(k)\)</span> in the worst case – worse than the
+AVL trees guaranteed <span class="math inline">\(O(\log k)\)</span>.</p>
+<p>The algorithm stores <span class="math inline">\(k\)</span> elements
+and their respective counter. Once there are more distinct items in
+<span class="math inline">\(S\)</span> than there are buckets in <span
+class="math inline">\(HT\)</span>, i.e., <span
+class="math display">\[\left| HH \left(\frac{1}{k + 1}, S \right)
+\right| &gt; B \text{ with } k = m = |support(S)|\]</span> the counters
+for <span class="math inline">\(k\)</span> elements need to be
+decremented and deleted from <span class="math inline">\(HT\)</span> if
+the decremented counter is zero. To reduce the <em>amortized</em>
+processing time in <span class="math inline">\(O(1)\)</span> to
+<em>expected</em> worst-case constant time Karp et al. <span
+class="citation" data-cites="Karp2003"></span> augment a hash table with
+a doubly linked list <span class="math inline">\(\mathcal{L}\)</span>
+holding every <span class="math inline">\(l \in k\)</span> and a linked
+list <span class="math inline">\(\mathcal{V}\)</span> holding their
+respective counts. This reduces the complexity during deletion to
+transforming a pointer from an <span class="math inline">\(l \in
+\mathcal{L}\)</span> to a <span class="math inline">\(v \in
+\mathcal{V}\)</span>. This structure is detailed in Figure <a
+href="#fig:KarpConstant" data-reference-type="ref"
+data-reference="fig:KarpConstant">3.2</a> using the same data as in <a
+href="#ex:MisraGriesData">first Example</a>.</p>
+<figure id="fig:KarpConstant">
+
+<figcaption>Data Representation for the Modified Misra-Gries Algorithm
+<span id="fig:KarpConstant"
+data-label="fig:KarpConstant"></span></figcaption>
+</figure>
+<div class="analysis">
+<p>The accuracy of the modified algorithm is the same as the original
+one. An approximation <span
+class="math inline">\(HH_{\varepsilon}\)</span>, where the relative
+error <span class="math inline">\(\varepsilon\)</span> is controlled by
+<span class="math inline">\(k = \frac{1}{\varepsilon}\)</span>, can be
+provided in a single pass but an exact solution requires two passes.</p>
+<p>Since the selection and deletion operation are extensions of the
+search operation of Algorithm <a href="#alg:HT"
+data-reference-type="ref" data-reference="alg:HT">[alg:HT]</a> the time
+complexity is <span class="math inline">\(time_{proc} = O(1)\)</span>
+and <span class="math inline">\(time_{comp} = O(m)\)</span> for both
+single pass and dual pass operations as per Karp et al. <span
+class="citation" data-cites="Karp2003"></span>. Since these time bounds
+include hashing operations their actual time requirements are highly
+dependent.</p>
+</div>
+<h2 id="sec:FrequencyMoments">Frequency Moments</h2>
+<p>Frequency moments are an important metric about a stream’s data. They
+are also convenient for the main focus of this thesis – the general
+<span class="smallcaps">Frequent</span> problem and its solution. The
+connections of these two topics is established in the following
+definition.</p>
+<div id="def:FM" class="definition">
+<p><strong>Definition 3.8</strong> (<span><span class="citation"
+data-cites="Alon1999"></span></span>). <em>Given a stream <span
+class="math inline">\(S\)</span> as a sequence of items <span
+class="math inline">\(s_i\)</span> with <span class="math inline">\(i
+\in [m]\)</span> and <span class="math inline">\(s_i \in [n]\)</span>.
+The frequency of a given element <span
+class="math inline">\(s_i\)</span> is the cardinality of the set of
+indices <span class="math inline">\(j \in [m]\)</span> such that <span
+class="math inline">\(s_i = s_j\)</span> yielding <span
+class="math display">\[f_i = \left| \{j \mid s_j = i\}\right| \text{,
+for all } i \in [n] \text{ and } j \in [m].\]</span> The <span
+class="math inline">\(k\)</span>-th frequency moment of <span
+class="math inline">\(S\)</span> is defined as <span
+class="math display">\[F_k(S) = \sum_{i=1}^{n} f_i^k.\]</span></em></p>
+</div>
+<p>The concept of frequency moments was first introduced by Alon, Matias
+and Szegedy <span class="citation" data-cites="Alon1999"></span>.
+According to the authors, frequency moments provide useful statistics on
+a set such as the degree of <em>skew</em> in the data. This information
+is of particular interest in database applications. Values like the
+number of distinct elements in a relation and estimates of join sizes
+are used in database query optimization, as pointed out by Chakrabarti
+<span class="citation" data-cites="Chakra2020"></span>.</p>
+<p><span class="math inline">\(F_k\)</span> is defined for every real
+<span class="math inline">\(k &gt; 0\)</span>. Let <span
+class="math inline">\(\bm{f} = f(S) = (f_1, f_2, \ldots, f_n)\)</span>
+be a vector of each elements frequency in the stream. <span
+class="math inline">\(F_1\)</span> is the sum of all frequencies and
+hence the length of stream <span class="math inline">\(S\)</span> as
+<span class="math inline">\(F_1 = \sum_{i} f_i = m\)</span>. This is
+equivalent to the cardinality <span class="math inline">\(|S|\)</span>
+when viewing <span class="math inline">\(S\)</span> as a multiset as the
+sum of every distinct elements <span class="math inline">\(e\)</span>
+multiplicity in <span class="math inline">\(S\)</span>. With <span
+class="math inline">\(cs = support(S)\)</span> this yields <span
+class="math display">\[F_1 = \sum_{i \in [n]} f_i = m = \sum_{e \in cs}
+m_S(e) = \left| S \right| .\]</span> The exact value of <span
+class="math inline">\(F_1\)</span> can be obtained by maintaining a
+single binary counter, consuming <span class="math inline">\(\Theta(\log
+m)\)</span> bits of space.</p>
+<p>The second frequency moment is the dot product of <span
+class="math inline">\(\bm{f}\)</span> with itself. This value is
+referred to as the <em>repeat rate</em> or <em>Gini’s index of
+homogeneity</em> by Alon et al. <span class="citation"
+data-cites="Alon1999"></span> and is used in computing the <em>surprise
+index</em> <span class="math inline">\(SI\)</span>, as described by Good
+<span class="citation" data-cites="Good1989"></span>. As a relation
+between the probability of a specific realization of a random variable
+<span class="math inline">\(P(R = r)\)</span> and the expected value of
+that variable <span class="math inline">\(E(R)\)</span> as <span
+class="math display">\[SI = \frac{E(R)}{P(R = r)},\]</span> this index
+formalizes how much of a <em>surprise</em> the realization of <span
+class="math inline">\(R\)</span> as <span
+class="math inline">\(r\)</span> is. A realization <span
+class="math inline">\(r\)</span> should be expected if <span
+class="math inline">\(SI\)</span> is close to one. A high value for
+<span class="math inline">\(SI\)</span> on the contrary means <span
+class="math inline">\(P(R = r)\)</span> is small, making <span
+class="math inline">\(r\)</span> a rare occurrence, as well as that
+there are other realizations with far higher probabilities. The
+frequencies of elements <span class="math inline">\(e\)</span> in <span
+class="math inline">\(S\)</span> contained in <span
+class="math inline">\(\bm{f}\)</span> are absolute while the probability
+of their occurrence <span class="math inline">\(P(S = e)\)</span> is
+relative to the total number of occurrences. This number is equal to the
+length of the stream and given in this model as <span
+class="math inline">\(\sum_i f_i = m\)</span>. Analogous to <span
+class="math inline">\(\bm{f}\)</span> a vector of probabilities <span
+class="math inline">\(\bm{p}\)</span> is derived by <span
+class="math display">\[\bm{p} = (p_1, p_2, \ldots, p_n) = \left(
+\frac{f_1}{m}, \frac{f_2}{m}, \ldots, \frac{f_n}{m} \right) =
+\frac{1}{m} \bm{f}.\]</span> The expected value for the frequency of an
+element occurring in <span class="math inline">\(S\)</span> is then the
+sum of all frequencies weighted by their respective probability <span
+class="math display">\[E(\bm{f}) = \sum_{i=1}^n p_i f_i = \sum_{i=1}^n
+\frac{f_i}{m} f_i = \frac{1}{m} \sum_{i=1}^n f_i^2 = \frac{1}{m}
+F_2(S).\]</span> This allows for a more intuitive interpretation of the
+second frequency moment where <span class="math inline">\(F_2\)</span>
+is an absolute measure of a sequence’s frequencies that is closely
+related to the relative expected value of its frequencies. <span
+class="math inline">\(F_2\)</span> does not require <span
+class="math inline">\(m\)</span> which is beneficial in the streaming
+scenario where <span class="math inline">\(m\)</span> might be infinite
+or unknown. Setting <span class="math inline">\(m = i\)</span> for each
+update <span class="math inline">\(s_i\)</span> is unfeasible if <span
+class="math inline">\(i\)</span> is very large and <span
+class="math inline">\(\log i\)</span> exceeds a memory limit or at least
+computation intensive since <span class="math inline">\(\bm{p}\)</span>
+needs to be re-computed after every update <span
+class="math inline">\(s_i\)</span>. The <em>surprise index</em> of a
+stream’s frequencies is identical whether the expected value, and
+therefore <span class="math inline">\(m\)</span>, or the second
+frequency moment is used in its computation: <span
+class="math display">\[SI_i = \frac{E(\bm{f})}{p_i} = \frac{\frac{1}{m}
+F_2(S)}{\frac{f_i}{m}} = \frac{F_2(S)}{f_i}.\]</span></p>
+<p><span class="math inline">\(F_0\)</span> is the number of distinct
+elements in <span class="math inline">\(S\)</span>. It is derived from
+Definition <a href="#def:FM" data-reference-type="ref"
+data-reference="def:FM">3.8</a> and the convention of <span
+class="math inline">\(0^0 \coloneqq 0\)</span> so that <span
+class="math inline">\(F_0\)</span> is incremented by one only if <span
+class="math inline">\(f_i &gt; 0\)</span>. When viewing <span
+class="math inline">\(S\)</span> as a multiset, <span
+class="math inline">\(F_0\)</span> is equivalent to the cardinality of
+<span class="math inline">\(support(S)\)</span> with <span
+class="math display">\[F_0 = \sum_i f_i^0 = \left| \{e \in U \mid e \in
+S \text{ and } f(e) &gt; 0\} \right| = support(S).\]</span></p>
+<h2 id="sec:DistinctEstimation">Estimating the Number of Distinct
+Elements</h2>
+<p>This section is concerned with estimating the number of distinct
+elements in a stream also called <span
+class="math inline">\(0\)</span>-th frequency moment. <span
+class="math inline">\(F_0\)</span> is just the quantity of those
+elements and contains neither the element itself nor any additional
+information on them. Regardless, maintaining <span
+class="math inline">\(F_0\)</span> provides valuable insights in a
+number of scenarios. One of which is laid out in detail as motivation
+below.</p>
+<p>The set of distinct elements <span class="math inline">\(D\)</span>
+of a stream <span class="math inline">\(S\)</span> could theoretically
+be computed using the Misra-Gries algorithm discussed in Section <a
+href="#subsec:MisraGries" data-reference-type="ref"
+data-reference="subsec:MisraGries">3.2.2</a>. This would mean setting
+the maximum number of returned items <span
+class="math inline">\(k\)</span> to the length of the stream <span
+class="math inline">\(m\)</span> since, with the streams elements being
+drawn from a universe <span class="math inline">\(U\)</span> with <span
+class="math inline">\(|U| = n &gt; m\)</span> and no element occurring
+more than once follows that <span class="math inline">\(|D| =
+m\)</span>. The space requirements of this algorithm are however linear
+with regards to <span class="math inline">\(k\)</span>, hence exceeding
+the sublinear space requirement for <span
+class="math inline">\(k=m\)</span> and a large <span
+class="math inline">\(D\)</span>. Choosing a smaller <span
+class="math inline">\(k\)</span> reduces the required space but opens
+the possibility of not including all distinct elements in the returned
+set. Keeping an estimate of <span class="math inline">\(F_0\)</span>
+while maintaining <span class="math inline">\(k\)</span> Misra-Gries
+counters would ensure that <span class="math inline">\(D\)</span>
+contains every distinct element as long as <span
+class="math inline">\(F_0 \leq k\)</span>. If that is not the case, this
+information may be used to decide if the available memory to the
+Misra-Gries algorithm could be extended or if the algorithm should be
+kept as is and its result be interpreted accordingly.</p>
+<p>This problem is called <span
+class="smallcaps">Distinct-Elements</span> by Chakrabarti <span
+class="citation" data-cites="Chakra2020"></span>. It is stated there
+that this problem cannot provably be solved exactly and
+deterministically in sublinear space. We shall therefore focus on
+providing an <span class="math inline">\((\varepsilon,
+\delta)\)</span>-estimate of <span class="math inline">\(F_0\)</span>
+where there are random elements in the algorithm, thus <span
+class="math inline">\(\varepsilon, \delta &gt; 0\)</span>.</p>
+<h3 id="subsec:Tidemark">The Tidemark Algorithm</h3>
+<p>The algorithm discussed here is originally due to Flajolet and Martin
+<span class="citation" data-cites="Flajolet1985"></span> and was later
+modified by Alon et al. <span class="citation"
+data-cites="Alon1999"></span>. It is called the Tidemark algorithm by
+Chakrabarti <span class="citation" data-cites="Chakra2020"></span> and
+allows for an introduction to two important techniques in data stream
+processing – universal hashing and the median trick.</p>
+<div class="definition">
+<p><strong>Definition 3.9</strong> (random variables). <em>A set of
+random variables <span class="math inline">\(\{X_1, \ldots,
+X_l\}\)</span> is <span class="math inline">\(k\)</span>-independent if
+<span class="math display">\[Pr \left[ \bigcap_{i \in J} X_i = x_i
+\right] = \prod_{i \in J} Pr \left[ X_i = x_i \right]\]</span> holds for
+every subset <span class="math inline">\(J \subseteq [l]\)</span> with
+<span class="math inline">\(|J| \leq k\)</span> and every realization
+<span class="math inline">\(x_i\)</span>.</em></p>
+</div>
+<div id="def:uniHash" class="definition">
+<p><strong>Definition 3.10</strong> (<span><span class="citation"
+data-cites="Chakra2020"></span></span>). <em>Let <span
+class="math inline">\(X\)</span> and <span
+class="math inline">\(Y\)</span> be finite sets and let <span
+class="math inline">\(\mathcal{H}\)</span> be a family of functions such
+that <span class="math inline">\(\mathcal{H} = \{h \mid h \colon X
+\mapsto Y\}\)</span>. Let further <span class="math inline">\(h \sim_R
+\mathcal{H}\)</span> denote that <span class="math inline">\(h\)</span>
+is being chosen uniformly and randomly from <span
+class="math inline">\(\mathcal{H}\)</span>.</em></p>
+<p><em>Two conditions must hold for <span
+class="math inline">\(\mathcal{H}\)</span> to be <span
+class="math inline">\(k\)</span>-universal.</em></p>
+<ul>
+<li><p><em>The random variable <span class="math inline">\(h(x)\)</span>
+is uniformly distributed in <span class="math inline">\(Y\)</span> for
+every <span class="math inline">\(x\)</span> in <span
+class="math inline">\(X\)</span>.</em></p></li>
+<li><p><em>A set of <span class="math inline">\(k\)</span> hashed values
+<span class="math inline">\(\{h(x_1), \ldots, h(x_k)\}\)</span> is <span
+class="math inline">\(k\)</span>-independent given a set of <span
+class="math inline">\(k\)</span> values <span
+class="math inline">\(\{x_1, \ldots, x_k\}\)</span> where for all <span
+class="math inline">\(i, j\)</span> in <span
+class="math inline">\([k]\)</span>, <span class="math inline">\(i \neq
+j\)</span> implies <span class="math inline">\(x_i \neq
+x_j\)</span>.</em></p></li>
+</ul>
+</div>
+<p>For this section <span class="math inline">\(2\)</span>-universal
+families of hash functions are of particular interest. With <span
+class="math inline">\(h\)</span> randomly chosen from such a family the
+values of <span class="math inline">\(h(x)\)</span> are uniformly
+distributed in <span class="math inline">\(Y\)</span> for all <span
+class="math inline">\(x \in X\)</span> and the probability of a specific
+realization <span class="math inline">\(Pr \left[ h(x) = y \right] =
+\frac{1}{|Y|}\)</span> , with <span class="math inline">\(y \in
+Y\)</span>, is independent from another, second realization. This
+reduces the probability for collisions, i.e., <span
+class="math inline">\(h(x_1) = h(x_2)\)</span> for all <span
+class="math inline">\(x_1, x_2 \in X\)</span> with <span
+class="math inline">\(x_1 \neq x_2\)</span>. Definition <a
+href="#def:uniHash" data-reference-type="ref"
+data-reference="def:uniHash">3.10</a> implies that this probability, for
+all <span class="math inline">\(y_1, y_2 \in Y\)</span>, is <span
+class="math display">\[Pr \left[ h(x_1)=y_1 \cap h(x_2) = y_2 \right] =
+\frac{1}{|Y|^2}.\]</span> This applies for <span
+class="math inline">\(y_1 = y_2\)</span> or <span
+class="math inline">\(y_1 \neq y_2\)</span> regardless.</p>
+<div class="example">
+<p>Given a prime number <span class="math inline">\(p\)</span> and two
+random numbers <span class="math inline">\(a, b \in [p]\)</span>, then
+<span class="math inline">\(\mathcal{H} \coloneqq \{h(x) = a \cdot x + b
+\bmod p\}\)</span> is a 2-universal family of hash functions.</p>
+</div>
+<p>The Tidemark algorithm given in Algorithm <a href="#alg:Tidemark"
+data-reference-type="ref"
+data-reference="alg:Tidemark">[alg:Tidemark]</a> works as follows. Every
+update <span class="math inline">\(s_i\)</span> is hashed via <span
+class="math inline">\(h \sim_R \mathcal{H}\)</span> and the resulting
+values <span class="math inline">\(h(s_i)\)</span> are then considered
+to be uniformly distributed in <span class="math inline">\([n]\)</span>.
+A helper function <span class="math inline">\(zeros()\)</span> is
+applied in order to retrieve the number of trailing zeros of the binary
+representation of <span class="math inline">\(h(s_i)\)</span>. More
+formally, <span class="math inline">\(zeros(p)\)</span> is defined for
+every <span class="math inline">\(p &gt; 0\)</span> as <span
+class="math display">\[zeros(p) = max( \{ l \mid 2^l \text{ divides }
+p\} ).\]</span> The maximal value of <span
+class="math inline">\(zeros(h(s_i))\)</span> for all <span
+class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span> is maintained in <span
+class="math inline">\(z\)</span> as the maximal number of trailing zeros
+over all hash values. With <span class="math inline">\(F_0(S)\)</span>
+being the number of distinct values in <span
+class="math inline">\(S\)</span>, <span class="math inline">\(z\)</span>
+is used as an approximation for <span
+class="math inline">\(F_0(S)\)</span>’s binary representations length in
+bits. This value is converted to decimal with <span
+class="math inline">\(2^{z + \frac{1}{2}}\)</span> and returned.</p>
+<div class="algorithm">
+<p>Choose random <span class="math inline">\(h \colon [n] \mapsto
+[n]\)</span> <span class="math inline">\(z \gets 0\)</span></p>
+</div>
+<p>The algorithm’s functioning is not apparent since the number of
+distinct elements is limited by the length of the stream, i.e., <span
+class="math inline">\(1 \leq F_0 \leq m\)</span> if <span
+class="math inline">\(n \gg m\)</span> is assumed, while the number of
+trailing zeros is a function of the size of the universe <span
+class="math inline">\(n\)</span> with values in <span
+class="math inline">\(\{0, 1, \ldots, \left\lfloor \log (n - 1)
+\right\rfloor \}\)</span>. The intuition is rather based on a scarcity
+argument. The streams updates are mapped uniformly to <span
+class="math inline">\([n]\)</span> after hashing. This means that the
+probability of <span class="math inline">\(h(s_i)\)</span> being a
+specific value is <span class="math inline">\(\frac{1}{n}\)</span>,
+hence only depending on <span class="math inline">\(n\)</span> and the
+same for all <span class="math inline">\(s_i\)</span>. The probability
+of <span class="math inline">\(zeros(h(s_i))\)</span> realizing as a
+specific value on the other hand is inversely proportional to that
+value. This is exemplified with the following cases.</p>
+<p>A value of zero for <span class="math inline">\(zeros(p)\)</span>
+means that there are no trailing zeros. This is equal to the last bit of
+<span class="math inline">\(p\)</span>’s binary representation being a
+<span class="math inline">\(1\)</span> which in turn applies to every
+uneven number in <span class="math inline">\([n]\)</span>. Since every
+other number in <span class="math inline">\([n]\)</span> is uneven the
+probability of <span class="math inline">\(zeros(p) = 0\)</span> is
+<span class="math inline">\(\frac{1}{2}\)</span>. With every even number
+having at least one trailing zero the same argument applies here,
+yielding <span class="math inline">\(Pr [ \, zeros(p) \geq 1 ] \, =
+\frac{1}{2}\)</span> as well. Two or more trailing zeros occur in <span
+class="math inline">\(4_{10} = 100_b\)</span> or multiples thereof. The
+potential values for <span class="math inline">\(p\)</span> are therefor
+in <span class="math inline">\(\{4, 8, 12, 16, \ldots \}\)</span>
+containing <span class="math inline">\(\frac{n}{4}\)</span>
+possibilities. This implies <span class="math inline">\(Pr [ \, zeros(p)
+\geq 2 ] \, = \frac{1}{4}\)</span>. Following this line of reasoning,
+for a number of trailing zeros greater two, this further yields <span
+class="math display">\[Pr [ \, zeros(p) \geq 3 ] \, = \frac{1}{8}
+\text{, } Pr [ \, zeros(p) \geq 4 ] \, = \frac{1}{16} \text{, } Pr [ \,
+zeros(p) \geq 5 ] \, = \frac{1}{32} \text{, } \ldots .\]</span></p>
+<p>A higher value for <span class="math inline">\(zeros(p)\)</span> is
+hence an increasingly rare event. Let <span class="math inline">\(P_1 =
+\{p_1, \ldots, p_k \}\)</span> and <span class="math inline">\(P_2 =
+\{p_1, p_2, \ldots, p_l \}\)</span> be two sets of uniformly distributed
+values and let the maximal number of trailing zeros for all values in a
+set <span class="math inline">\(P\)</span> be given as <span
+class="math inline">\(z(P) = \max \{zeros(p_i) \mid i \in [|P|]
+\}\)</span>. The probability of <span class="math inline">\(z\)</span>
+surpassing a threshold <span class="math inline">\(t\)</span> is then
+also inversely proportional to <span class="math inline">\(t\)</span>
+which can be formalized as <span class="math display">\[t_1 &gt; t_2
+\Rightarrow Pr [ \, z(P) \geq t_2 ] \, &gt; Pr [ \, z(P) \geq t_1 ] \,
+.\]</span> If however the two events <span class="math inline">\(z(P_1)
+\geq t_2\)</span> and <span class="math inline">\(z(P_2) \geq
+t_1\)</span> with <span class="math inline">\(t_1 &gt; t_2\)</span> both
+occur, i.e., have a probability of one, then <span
+class="math inline">\(|P_1| &gt; |P_2|\)</span> can be assumed on
+average. For the Tidemark algorithm this translates to the following
+assumptions:</p>
+<ul>
+<li><p>The inequality <span class="math inline">\(zeros(h(d)) \geq \log
+(F_0)\)</span> holds for at least one of the distinct items <span
+class="math inline">\(d\)</span> in <span
+class="math inline">\(F_0\)</span></p></li>
+<li><p>No distinct item satisfies <span
+class="math inline">\(zeros(h(d)) \gg \log (F_0)\)</span></p></li>
+</ul>
+<p>The formal analysis of this algorithm requires some key results from
+the statistics field. These results are accepted as fact and are not
+discussed further.</p>
+<div id="th:Markov" class="theorem">
+<p><strong>Theorem 3.4</strong> (Markov’s inequality). <em>Let <span
+class="math inline">\(X &gt; 0\)</span> be a random variable and <span
+class="math inline">\(a \geq 0\)</span> be an arbitrary but fixed real
+number. The probability that <span class="math inline">\(X\)</span> is
+at least <span class="math inline">\(a\)</span> is at most the
+expectation of <span class="math inline">\(X\)</span> divided by <span
+class="math inline">\(a\)</span>: <span class="math display">\[Pr[X \geq
+a] \leq \frac{E[X]}{a}.\]</span></em></p>
+</div>
+<div id="th:Chebyshev" class="theorem">
+<p><strong>Theorem 3.5</strong> (Chebyshev’s inequality). <em>Let <span
+class="math inline">\(X &gt; 0\)</span> be a random variable with finite
+expectation and variance. The probability for a divergence between <span
+class="math inline">\(X\)</span> and its expected value <span
+class="math inline">\(E[X]\)</span> of at least <span
+class="math inline">\(k\)</span> is less or equal the variance of <span
+class="math inline">\(X\)</span> divided by <span
+class="math inline">\(k^2\)</span>: <span class="math display">\[Pr [
+\left| X- E[X] \right| \geq k] \leq
+\frac{Var[X]}{k^2}.\]</span></em></p>
+</div>
+<div id="th:Boole" class="theorem">
+<p><strong>Theorem 3.6</strong> (Boole’s inequality). <em>Let <span
+class="math inline">\(\{R_1, \ldots, R_n\}\)</span> be a finite set of
+events. The probability of the union of this set is at most the sum of
+each event’s individual probability: <span
+class="math display">\[Pr\left[\bigcup_{i=1}^{n} R_i\right] \leq
+\sum_{i=1}^{n} Pr[R_i].\]</span></em></p>
+</div>
+<p>It can now be shown that Algorithm <a href="#alg:Tidemark"
+data-reference-type="ref"
+data-reference="alg:Tidemark">[alg:Tidemark]</a> provides an
+approximation of the number of distinct elements <span
+class="math inline">\(F_0\)</span> in a stream and therefore solves
+<span class="smallcaps">Distinct-Estimation</span> approximately.</p>
+<div id="th:tidemark" class="theorem">
+<p><strong>Theorem 3.7</strong> (<span><span class="citation"
+data-cites="Alon1999"></span></span>). <em>Let <span
+class="math inline">\(S\)</span> be a stream and let <span
+class="math inline">\(F_0^*(S)\)</span> be the approximation of <span
+class="math inline">\(F_0(S)\)</span> returned by the Tidemark
+algorithm. The probability that the ratio between approximation and true
+value is not between <span class="math inline">\(\frac{1}{c}\)</span>
+and <span class="math inline">\(c\)</span> is for all <span
+class="math inline">\(c &gt; 2\)</span> at most <span
+class="math inline">\(2 \cdot \frac{\sqrt{2}}{c}\)</span>. In symbols
+this equates to <span class="math display">\[Pr \left[
+\frac{F_0^*(S)}{F_0(S)} \leq \frac{1}{c} \cup \frac{F_0^*(S)}{F_0(S)}
+\geq c \right] \leq 2 \cdot \frac{\sqrt{2}}{c}.\]</span></em></p>
+</div>
+<div class="proof">
+<p><em>Proof.</em> Given an element <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\([n]\)</span> that occurs at least once in the
+stream <span class="math inline">\(S\)</span>, i.e., <span
+class="math inline">\(f(e) \geq 1\)</span>, and a natural number <span
+class="math inline">\(t \geq 0\)</span> as a threshold variable. Let
+<span class="math inline">\(X_{t, e}\)</span> be a random variable,
+indicating whether the number of zeros in <span
+class="math inline">\(e\)</span> exceeds <span
+class="math inline">\(t\)</span>, defined as <span
+class="math display">\[X_{t, e} =
+        \begin{cases}
+            1, &amp; \text{if } zeros(h(e)) \geq t \\
+            0, &amp; \text{else} \\
+        \end{cases}\]</span> and <span
+class="math inline">\(Y_t\)</span> be the number of hashed values <span
+class="math inline">\(h(e)\)</span> that have at least <span
+class="math inline">\(t\)</span> trailing zeros. This is achieved by
+summing <span class="math inline">\(X_{t, e}\)</span> over all distinct
+elements in <span class="math inline">\(S\)</span>. With the set of
+distinct elements given as <span class="math inline">\(D(S) = \{d \mid
+f(S, d) \geq 1\}\)</span>, following Definition <a href="#def:Distinct"
+data-reference-type="ref" data-reference="def:Distinct">3.4</a>, this
+yields <span class="math display">\[Y_t = \sum_{e \in D(S)} X_{t,
+e}.\]</span> Let further <span class="math inline">\(z^*\)</span> denote
+the last value of <span class="math inline">\(z\)</span> after the
+algorithm finished processing <span class="math inline">\(S\)</span>.
+This value is greater or equal <span class="math inline">\(t\)</span> if
+and only if <span class="math inline">\(Y_t &gt; 0\)</span>. Clearly,
+<span class="math inline">\(z^* &gt; t\)</span> implies that at least
+one <span class="math inline">\(X_{t, e} = 1\)</span> and therefor that
+their sum <span class="math inline">\(\sum_{e \in D(S)} X_{t, e} \geq
+1\)</span>. The other direction also holds since <span
+class="math inline">\(Y_t &gt; 0\)</span> implies that at least at one
+time over the run time of the algorithm <span class="math inline">\(z
+&gt; t\)</span> was true. With <span class="math inline">\(z^*\)</span>
+as the maximum of all of <span class="math inline">\(z\)</span>’s
+values, <span class="math inline">\(z^* &gt; t\)</span> follows
+directly. An equivalent form of this is <span
+class="math display">\[\label{eq:thresholdTidemark}
+        Y_t = 0 \Leftrightarrow z^* \leq t - 1.\]</span></p>
+<p>With <span class="math inline">\(h(e)\)</span> being uniformly
+distributed in <span class="math inline">\([n]\)</span> and following
+the initial intuition the expected value of <span
+class="math inline">\(X_{t, e}\)</span> can be formalized as <span
+class="math display">\[E[X_{t, e}] = Pr[zeros(h(e)) \geq t] = Pr\left[
+2^t \text{ divides } h(e)\right] .\]</span> In the streaming scenario a
+large universe <span class="math inline">\(U\)</span>, and therefor
+<span class="math inline">\(2^t &lt; |U| = n\)</span>, can reasonably be
+assumed. This yields <span class="math display">\[Pr\left[ 2^t \text{
+divides } h(e) \right] = \frac{1}{2^t}\]</span> if for simplicity <span
+class="math inline">\(n\)</span> is further assumed to be a power of
+two. The expected total number of values <span
+class="math inline">\(h(e)\)</span> that satisfy <span
+class="math inline">\(zeros(h(e)) \geq t\)</span> is given as <span
+class="math display">\[E[Y_t] = E\left[ \sum_{e \in D(S)} X_{t,
+e}\right] = \sum_{e \in D(S)} E\left[X_{t, e}\right] =
+\frac{F_0}{2^t}\]</span> This is due to the linearity of expectation and
+the, by definition, equation of <span class="math inline">\(F_0\)</span>
+and the number of distinct elements in <span
+class="math inline">\(S\)</span>, <span
+class="math inline">\(|D(S)|\)</span>.</p>
+<p>The variance of <span class="math inline">\(Y_t\)</span> is equal to
+the sum of the variances of each <span class="math inline">\(X_{t,
+e}\)</span> due to the 2-independence of the random variables <span
+class="math inline">\(X_{t, e}\)</span> for every <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(D(S)\)</span> yielding the first line of
+equation <a href="#eq:varTidemark1" data-reference-type="ref"
+data-reference="eq:varTidemark1">[eq:varTidemark1]</a>. With <span
+class="math inline">\(X_{t, e}\)</span> realizing as either <span
+class="math inline">\(0\)</span> or <span
+class="math inline">\(1\)</span>, <span class="math inline">\(X_{t,
+e}^2= X_{t, e}\)</span> is apparent. Combining this with <span
+class="math inline">\(Var[X_{t, e}] = E[X_{t, e}^2] - E[X_{t,
+e}]^2\)</span> results in the inequality <a href="#eq:varTidemark2"
+data-reference-type="ref"
+data-reference="eq:varTidemark2">[eq:varTidemark2]</a>. Together this
+gives an upper bound for the variance in the total number of ”large“
+values <span class="math inline">\(e\)</span>, as in <span
+class="math inline">\(zeros(e) \geq t\)</span>, in <span
+class="math inline">\(S\)</span>: <span
+class="math display">\[\begin{aligned}
+        Var[Y_t] &amp;= Var \left[\sum_{e \in D(S)} X_{t, e}\right] =
+\sum_{e \in D(S)} Var[X_{t, e}] \label{eq:varTidemark1} \\
+            &amp;\leq E[X_{t, e}^2] = E[ X_{t, e}] = \frac{F_0}{2^r}.
+\label{eq:varTidemark2}
+    
+\end{aligned}\]</span></p>
+<p>The total number of distinct hash values of a stream of length <span
+class="math inline">\(m\)</span> that have at least <span
+class="math inline">\(t\)</span> trailing zeros <span
+class="math inline">\(Y_t\)</span> can either be zero or a natural
+number in <span class="math inline">\([m]\)</span>. <span
+class="math inline">\(Y_t &gt; 0\)</span>, i.e., <span
+class="math inline">\(Y_t\)</span> is a natural number, is equivalent to
+the event <span class="math inline">\(Y_t \geq 1\)</span>. Applying
+Markov’s inequality to this event yields: <span
+class="math display">\[\label{eq:totalTrailingTidemark}
+        Pr[Y_t \geq 1] \leq \frac{E[Y_t]}{1} =
+\frac{F_0}{2^t}.\]</span></p>
+<p>In order to find an upper bound for the remaining case <span
+class="math inline">\(Y_t = 0\)</span> using Chebyshev’s inequality, the
+validity of <span class="math display">\[Pr\left[ Y_t = 0 \cup Y_t \geq
+E \left[ Y_t \right] + \frac{F_0}{2^t} \right] = Pr \left[ \left| Y_t -
+E \left[Y_t \right] \right| \geq \frac{F_0}{2^t} \right]\]</span> has to
+be established first. The event on the left side of the equation
+trivially occurs if <span class="math inline">\(Y_t = 0\)</span> or
+<span class="math inline">\(Y_t \geq E \left[ Y_t \right] +
+\frac{F_0}{2^t}\)</span>. With <span class="math inline">\(E \left[ Y_t
+\right] = \frac{F_0}{2^t}\)</span> the same holds for the event on the
+right side. Both events don’t occur for <span class="math inline">\(0
+&lt; Y_t &lt; E \left[ Y_t \right] + \frac{F_0}{2^t}\)</span> and do
+occur for every other possible realization of <span
+class="math inline">\(Y_t\)</span>. Hence the two events are equivalent
+and their probabilities equal.</p>
+<p>The probability of an event <span class="math inline">\(R_1\)</span>
+can be bound from above by the probability for the two mutually
+exclusive events <span class="math inline">\(R_1\)</span> and <span
+class="math inline">\(R_2\)</span>. This follows immediately with <span
+class="math inline">\(Pr \left[ R_1 \cup R_2 \right] = Pr \left[ R_1
+\right] + Pr \left[ R_2 \right]\)</span> and <span
+class="math inline">\(Pr \left[ R_2 \right] \geq 0\)</span>. Applying
+this method to <span class="math inline">\(Y_t\)</span> results in <span
+class="math display">\[Pr \left[ Y_t = 0 \right] \leq Pr \left[ Y_t = 0
+\cup Y_t \geq E \left[ Y_t \right] + \frac{F_0}{2^t} \right]
+.\]</span></p>
+<p>Combining the two last results with Chebyshev’s inequality finally
+yields <span
+class="math display">\[\label{eq:totalTrailingTidemarkEqual}
+        Pr \left[ Y_t = 0 \right] \leq Pr \left[ \left| Y_t - E
+\left[Y_t \right] \right| \geq \frac{F_0}{2^t} \right] \leq
+\frac{Var\left[ Y_t \right] }{\left( \frac{F_0}{2^t}\right)^2} =
+\frac{2^t}{F_0}.\]</span></p>
+<p>It can now be shown, that the value returned by Algorithm <a
+href="#alg:Tidemark" data-reference-type="ref"
+data-reference="alg:Tidemark">[alg:Tidemark]</a> is indeed an
+approximation of <span class="math inline">\(F_0\)</span>. This return
+value is denoted as <span class="math inline">\(F_0^* =
+2^{z^*+\frac{1}{2}}\)</span>. Let <span class="math inline">\(c &gt;
+2\)</span> be a constant natural number and let <span
+class="math inline">\(a\)</span> be the smallest possible number in
+<span class="math inline">\(\mathbb{N}_0\)</span> such that the upper
+bound <span class="math inline">\(2^{a+\frac{1}{2}} \geq c \cdot
+F_0\)</span> is true. This can only be larger than <span
+class="math inline">\(F_0^*\)</span> if <span class="math inline">\(a
+&gt; z^*\)</span>, yielding <span class="math display">\[Pr \left[ F_0^*
+\geq c \cdot F_0 \right] = Pr \left[ z^* \geq a \right].\]</span> Using
+equation <a href="#eq:thresholdTidemark" data-reference-type="ref"
+data-reference="eq:thresholdTidemark">[eq:thresholdTidemark]</a> and the
+upper bound for <span class="math inline">\(Pr \left[ Y_t \geq 1
+\right]\)</span> in equation <a href="#eq:totalTrailingTidemark"
+data-reference-type="ref"
+data-reference="eq:totalTrailingTidemark">[eq:totalTrailingTidemark]</a>
+results in <span class="math display">\[Pr \left[ z^* \geq a \right] =
+Pr \left[ Y_t &gt; 0 \right] \leq \frac{F_0}{2^t}.\]</span> Rearranging
+the upper bound gives <span class="math display">\[2^{a+\frac{1}{2}}
+\geq c \cdot F_0 \Rightarrow F_0 \leq \frac{2^{a+\frac{1}{2}}}{c}
+\Rightarrow \frac{F_0}{2^a} \leq \frac{\sqrt{2}}{c}\]</span> and hence
+the final result of <span
+class="math display">\[\label{eq:boundTidemark}
+        Pr \left[ F_0^* \geq c \cdot F_0 \right] \leq
+\frac{\sqrt{2}}{c}.\]</span></p>
+<p>The lower bound can be established in a similar manner. Given the
+constant <span class="math inline">\(c\)</span> from above, let <span
+class="math inline">\(b\)</span> be the largest natural number such that
+<span class="math inline">\(2^{b+\frac{1}{2}} \leq
+\frac{F_0}{c}\)</span>. Using equation <a href="#eq:thresholdTidemark"
+data-reference-type="ref"
+data-reference="eq:thresholdTidemark">[eq:thresholdTidemark]</a> and
+equation <a href="#eq:totalTrailingTidemarkEqual"
+data-reference-type="ref"
+data-reference="eq:totalTrailingTidemarkEqual">[eq:totalTrailingTidemarkEqual]</a>
+yields <span class="math display">\[Pr \left[ F_0^*(S) \leq
+\frac{F_0}{c} \right] \leq Pr \left[ z^* \leq b \right] = Pr \left[
+Y_{b+1} = 0 \right] \leq \frac{2^{b+1}}{F_0} \leq
+\frac{\sqrt{2}}{c}.\]</span></p>
+<p>Both events, i.e., the estimation exceeding either lower or upper
+bound, are mutually exclusive. The probability of their union is
+therefore equal to the sum of the individual probabilities and can be
+bound from above as <span class="math display">\[Pr \left[ F_0^*(S) \leq
+\frac{F_0}{c} \cup F_0^* \geq c \cdot F_0 \right] \leq Pr \left[
+F_0^*(S) \leq \frac{F_0}{c} \right] + Pr \left[ F_0^* \geq c \cdot F_0
+\right] \leq 2 \cdot \frac{\sqrt{2}}{c}.\]</span></p>
+<p>This proves Theorem <a href="#th:tidemark" data-reference-type="ref"
+data-reference="th:tidemark">3.7</a>. ◻</p>
+</div>
+<div class="analysis">
+<p>For each update <span class="math inline">\(s_i\)</span> to the
+stream <span class="math inline">\(S\)</span> the algorithm performs a
+constant amount of operations, namely the hashing of the update, the
+computation of the helper function <span
+class="math inline">\(zeros(h(s_i))\)</span>, a comparison between this
+value and the current value of the counter <span
+class="math inline">\(z\)</span>, and finally a conditional update of
+<span class="math inline">\(z\)</span>. The hashing of <span
+class="math inline">\(s_i\)</span> can be considered constant in time
+since possible collisions are ignored and not handled in any form. The
+function <span class="math inline">\(zeros(h(s_i))\)</span> counts the
+number of trailing zeros in the binary representation of <span
+class="math inline">\(h(s_i)\)</span>. With the size of the universe
+being <span class="math inline">\(n\)</span>, the maximal size of <span
+class="math inline">\(h(s_i)\)</span> is <span
+class="math inline">\(\lfloor \log n \rfloor +1\)</span>. Counting that
+many bits can be done in <span class="math inline">\(\Theta(\lfloor \log
+n \rfloor +1)\)</span> time. The comparison of two numbers in a binary
+representation requires at most a bit wise comparison over the length
+the smaller number. A worst case time of <span
+class="math inline">\(\Omega(\log n)\)</span> is therefore required. The
+conditional update of <span class="math inline">\(z\)</span> is clearly
+constant in time at worst. The time required for all these individual
+operations can be attributed to a single update <span
+class="math inline">\(s_i\)</span>. With a total of <span
+class="math inline">\(m\)</span> updates this results in a comprehensive
+time complexity of <span class="math inline">\(O(m)\)</span>.</p>
+<p>As stated by Alon et al. <span class="citation"
+data-cites="Alon1999"></span> the Tidemark algorithm requires <span
+class="math inline">\(O(\log n)\)</span> bits of memory space. The
+following estimate is more precise: Exactly one value is stored – <span
+class="math inline">\(zeros(h(s_i))\)</span>. The maximal size of <span
+class="math inline">\(h(s_i)\)</span>, as established above, is <span
+class="math inline">\(\lfloor \log n \rfloor +1\)</span>. Representing
+this maximal value again requires only logarithmic space. Additionally
+the two functions <span class="math inline">\(zeros()\)</span> and <span
+class="math inline">\(h()\)</span> have to be stored. While there is no
+determinant on their size, the space requirement is not dependent on
+either variable <span class="math inline">\(m\)</span> or <span
+class="math inline">\(n\)</span> and is therefore considered constant.
+This results in an overall asymptotic space complexity of <span
+class="math inline">\(M(S)\)</span> in <span
+class="math inline">\(O(\log \log n)\)</span>.</p>
+<p>The algorithm works on a single pass over the data.</p>
+</div>
+<p>Two problems arise with this result from Theorem <a
+href="#th:tidemark" data-reference-type="ref"
+data-reference="th:tidemark">3.7</a>. First, while the Tidemark
+algorithm provides an approximation for <span
+class="math inline">\(F_0\)</span>, it does not satisfy Definition <a
+href="#def:Approx" data-reference-type="ref"
+data-reference="def:Approx">2.3</a>. The accuracy parameter <span
+class="math inline">\(c\)</span> fails to provide a symmetrical
+confidence interval of the kind <span class="math inline">\(\left[ (1-c)
+\cdot F_0, (1+c) \cdot F_0 \right]\)</span> but rather yields <span
+class="math inline">\(\left[ \frac{F_0}{c}, c F_0 \right]\)</span>.
+Second, the same parameter <span class="math inline">\(c\)</span>
+controls both the accuracy of the approximation as well as the
+probability that the set accuracy cannot be archived. <span
+class="math inline">\(c\)</span> is used in implicitly defining both
+<span class="math inline">\(a\)</span> and <span
+class="math inline">\(b\)</span>, thus choosing a higher value for <span
+class="math inline">\(c\)</span> reduces the probability of failure but
+decreases the accuracy at the same time. This conundrum can however be
+effectively solved by means of the median trick. It is a technique often
+used in <span data-acronym-label="dsa"
+data-acronym-form="plural+short">dsas</span> because for any given
+probability of failure arbitrary good accuracy can be archived by
+increasing the available space.</p>
+<h4 id="subsubsec:MedianTrick">The Median Trick</h4>
+<p>Given a fixed accuracy parameter that creates an interval around the
+true value and a basic estimator with an expected value of exactly that
+true value, the probability that the basic estimator takes a value
+within in the interval depends on its variance. This probability can
+then be bound using the Chebyshev inequality. Similarly to the law of
+large numbers the bound can become increasingly tighter if the basic
+estimator is run multiple times. The median of these results is used to
+make the probability of failure arbitrarily small. This probability
+decreases if the number of independent results from the basic estimator
+increases. Multiple results however require multiple runs of the
+underlying algorithm. This can be done either sequentially, thus needing
+multiple passes over the data and increasing the runtime of the
+algorithm accordingly, or in parallel, thereby increasing the required
+space in memory.</p>
+<p>Each of the <span class="math inline">\(k\)</span> results of the
+basic Tidemark algorithm are mapped to a random variable <span
+class="math inline">\(X_i\)</span>, indicating with <span
+class="math inline">\(X_i = 1\)</span> if <span
+class="math inline">\(k\)</span> matches the accuracy requirements or
+that this is not the case with <span class="math inline">\(X_i =
+0\)</span>. These indicator variables are independent of each other and
+therefore constitute a <em>Bernoulli trial</em>. The sum over the
+individual trials, i.e., <span class="math inline">\(X \coloneqq \sum_{i
+\in [k]} X_i\)</span>, is then referred to as a <em>Poisson trial</em>.
+The probability of an individual result is already known. Since every
+single result of the Tidemark algorithm is independent, the probability
+that the median over all results matches the accuracy requirements and
+therefore the expected value of <span class="math inline">\(X\)</span>
+is simply the individual probability times <span
+class="math inline">\(k\)</span>. The probability of a divergence
+between a realization of <span class="math inline">\(X\)</span> and its
+expected value can be bound using the Chernoff inequality and <span
+class="math inline">\(k\)</span> as a controlling parameter.</p>
+<div class="theorem">
+<p><strong>Theorem 3.8</strong> (Chernoff bound for Poisson trials).
+<em>Let <span class="math inline">\(X_1, \ldots, X_k\)</span> be
+independent indicator random variables. For every <span
+class="math inline">\(i\)</span> in <span
+class="math inline">\([k]\)</span> the random variable <span
+class="math inline">\(X_i\)</span> has a probability of <span
+class="math inline">\(p_i\)</span> to realize as <span
+class="math inline">\(1\)</span> and a probability of <span
+class="math inline">\(1-p_i\)</span> to be <span
+class="math inline">\(0\)</span>. Let <span class="math inline">\(X
+\coloneqq \sum_{i \in [k]} X_i\)</span> and <span
+class="math inline">\(E\left[X\right] = E\left[\sum_{i \in [k]}
+X_i\right] = \sum_{i \in [k]} p_i\)</span>. With <span
+class="math inline">\(e \approx 2.71\ldots\)</span> as the base of the
+natural logarithm and for every <span class="math inline">\(0 &lt; d
+&lt; 1\)</span>, the probability of a realization of <span
+class="math inline">\(X\)</span> outside of a confidence interval
+defined by <span class="math inline">\(d\)</span> is given as <span
+class="math display">\[Pr\left[X &lt; (1-d)E\left[X\right]\right] &lt;
+e^{-d^2 E\left[X\right] / 2}\]</span> for the lower bound and for the
+upper bound as <span class="math display">\[Pr\left[X &gt;
+(1+d)E\left[X\right]\right] &lt; e^{-d^2 E\left[X\right] /
+3}.\]</span></em></p>
+</div>
+<p>Applying this to the Tidemark algorithm and the probability bound of
+Theorem <a href="#th:tidemark" data-reference-type="ref"
+data-reference="th:tidemark">3.7</a> yields improved guarantees for the
+final result.</p>
+<div id="th:medianTidemark" class="theorem">
+<p><strong>Theorem 3.9</strong>. <em>Running <span
+class="math inline">\(O(\log \frac{1}{\delta})\)</span> copies of the
+Tidemark algorithm and returning the median of all individual results
+yields a <span class="math inline">\((O(1), \delta)\)</span>-estimation
+of <span class="math inline">\(F_0\)</span>.</em></p>
+</div>
+<div class="proof">
+<p><em>Proof.</em> Using equation <a href="#eq:boundTidemark"
+data-reference-type="ref"
+data-reference="eq:boundTidemark">[eq:boundTidemark]</a> and fixing
+<span class="math inline">\(c\)</span> to be constant yields <span
+class="math display">\[Pr\left[F_0^* \geq c F_0 \right] \leq
+\frac{\sqrt{2}}{c}\]</span> Let <span class="math inline">\(X_1, \ldots,
+X_k\)</span> be independent indicator random variables for the event
+“<span class="math inline">\(F_0^* \geq c F_0\)</span>”. This event has
+a probability of <span
+class="math inline">\(\frac{\sqrt{2}}{c}\)</span>, thus <span
+class="math display">\[E\left[X\right] = E\left[\sum_{i =1}^k X_i\right]
+= \sum_{i = 1}^k p_i = k \frac{\sqrt{2}}{c}.\]</span> If the median of
+<span class="math inline">\(k\)</span> results of the Tidemark algorithm
+is above <span class="math inline">\(c F_0\)</span>, then at least half
+of the individual results are above <span class="math inline">\(c
+F_0\)</span>. Using Chernoff’s inequality with an upper bound of <span
+class="math inline">\((1+d)F_0 = \frac{k}{2}\)</span>, i.e., <span
+class="math inline">\(d = \frac{c}{2\sqrt{2}}\)</span>, yields <span
+class="math display">\[Pr\left[X &gt; \frac{k}{2}\right] &lt;
+e^{-\frac{1}{3} \cdot \frac{k\sqrt{2}}{c} \cdot
+\left(\frac{c}{2\sqrt{2}}\right)^2} = e^{-\frac{k \cdot c}{12
+\sqrt{2}}}.\]</span> With <span class="math inline">\(Pr\left[X &gt;
+\frac{k}{2}\right]\)</span> in <span
+class="math inline">\(e^{-O(k)}\)</span>, the probability of the median
+being above <span class="math inline">\(3F_0\)</span> can also be stated
+as <span class="math inline">\(2^{-\Omega(k)}\)</span>.</p>
+<p>The lower bound can be derived identically and yields, due to <span
+class="math inline">\(Pr\left[F_0^* \geq 3 F_0 \right] = Pr\left[F_0^*
+\leq  \frac{F_0}{3} \right]\)</span> the same result. The probability
+that the median is below <span
+class="math inline">\(\frac{F_0}{3}\)</span> is therefore in <span
+class="math inline">\(2^{-\Omega(k)}\)</span> as well. The probability
+of either a violation of the upper or the lower bound is the sum of both
+individual probabilities, hence <span class="math inline">\(2 \cdot
+2^{-\Omega(k)}\)</span>. For <span class="math inline">\(k\)</span> in
+<span class="math inline">\(\Theta(\frac{1}{2} \log
+\frac{1}{\delta})\)</span> this evaluates to a maximal probability of
+failure of <span class="math inline">\(\delta\)</span>. The confidence
+interval is given by <span class="math inline">\(\varepsilon =
+d\)</span>, which is constant in this context. In the analysis of the
+basic estimator <span class="math inline">\(c\)</span> may be used to
+control upper and lower bounds and the respective probability of failure
+but in this context <span class="math inline">\(c\)</span> is kept
+constant.</p>
+<p>The original algorithm requires <span class="math inline">\(O(\log
+\log n)\)</span> space. Running <span class="math inline">\(k\)</span>
+copies of Tidemark therefore requires <span class="math inline">\(O(\log
+\frac{1}{\delta} \log \log n)\)</span> space. ◻</p>
+</div>
+<h2 id="estimating-frequencies-sketch-based-algorithms">Estimating
+Frequencies: Sketch-based Algorithms</h2>
+<p>The previously described counter based algorithms solve the <span
+class="smallcaps">Frequent-Estimation</span> problem in a single pass.
+One additional pass can then be used to verify the frequency estimation
+from the first pass and return the set of frequent elements, solving the
+<span class="smallcaps">Frequent</span> problem as a result. These
+algorithms are deterministic in the sense that the returned result will
+always satisfy a specific guarantee about the accuracy of the answer but
+they only work in the cash register model. The space reduction in
+counter based algorithms is solely achieved by keeping exact count only
+of elements that are likely exceed the desired frequency. Elements that
+that are occurring less frequently <em>relative</em> to all other
+elements are therefore removed from the list and no information on their
+exact frequencies is maintained. An element is removed from the list if
+its counter is zero and a counter can only be decreased if there are
+elements occurring in the stream that are not yet recorded. An elements
+counter thus represents its relative frequency but not its absolute
+frequency in the stream. This mechanism does not work if the absolute
+frequency of an element is allowed to decrease – like it is the case in
+the turnstile model. This model is used for streams that include updates
+with a decreasing frequency. It is prefixed by <em>strict</em> if the
+frequency of an element is allowed to decrease but stays above or equal
+to zero. The plain turnstile model allows both decreasing updates and
+negative total frequencies. With <span class="math inline">\(S\)</span>
+being a stream in the turnstile model, each update to the stream <span
+class="math inline">\(s_i\)</span> is a <span
+class="math inline">\(2\)</span>-tuple <span class="math inline">\((j,
+c)\)</span>. The update occurs at the <span
+class="math inline">\(i\)</span>-th index in the stream. It uses <span
+class="math inline">\(j\)</span> as a key to uniquely identify an
+element from the universe <span class="math inline">\(U\)</span>. The
+associated value is identified by <span
+class="math inline">\(c\)</span>. This value can be interpreted in any
+form but for this use case it will be a frequency update. If <span
+class="math inline">\(S\)</span> is again imagined as a multiset, then
+there is a vector <span class="math inline">\(\bm{f}\)</span> containing
+each elements total frequency in <span class="math inline">\(S\)</span>.
+Since <span class="math inline">\(c\)</span> is an update to <span
+class="math inline">\(j\)</span>’s individual frequency, <span
+class="math inline">\(f_j\)</span> is the sum of all <span
+class="math inline">\(c\)</span>’s of all updates where the key, i.e.
+the first element in the tuple, matches <span
+class="math inline">\(j\)</span>.</p>
+<div class="example">
+<p>Let <span class="math inline">\(U = \{1,2,3\}\)</span> be a universe
+of values and let <span class="math inline">\(\mathcal{S}_1\)</span>,
+<span class="math inline">\(\mathcal{S}_2\)</span>, <span
+class="math inline">\(\mathcal{S}_3\)</span> be streams of length <span
+class="math inline">\(m = 3\)</span> in the turnstile model on <span
+class="math inline">\(U\)</span>. Each stream is designed to show the
+limitations of the Misra-Gries algorithm and two hypothetical
+modifications thereof respectively. There is only enough space to store
+one counter. This counter is a <span
+class="math inline">\(2\)</span>-tuple consisting of an element from
+<span class="math inline">\(U\)</span> in the first position and the
+estimated frequency of this element in the second one. Its state and the
+respective streams updates are depicted in detail in Table <a
+href="#tab:turnstileMisra" data-reference-type="ref"
+data-reference="tab:turnstileMisra">[tab:turnstileMisra]</a>. The first
+column describes the original Misra-Gries method as described in
+Algorithm <a href="#alg:OriginalMisraGries" data-reference-type="ref"
+data-reference="alg:OriginalMisraGries">[alg:OriginalMisraGries]</a>.</p>
+<p>The second column, named “Experiment1”, shows the same information
+for an hypothetical algorithm that works like the Misra-Gries algorithm
+but instead of fixed increments of <span
+class="math inline">\(1\)</span> and fixed decrements of <span
+class="math inline">\(-1\)</span>, the sign in the updates <span
+class="math inline">\(c\)</span> is considered. The counter at index
+<span class="math inline">\(2\)</span> is set to <span
+class="math inline">\((1,1)\)</span>, i.e., the element <span
+class="math inline">\(1\)</span> is considered to be the solution with
+an estimated frequency of <span class="math inline">\(1\)</span>. The
+update at that index is <span class="math inline">\((2,-1)\)</span>.
+Contrary to the plain Misra-Gries algorithm the counter is not
+decremented by <span class="math inline">\(1\)</span> but instead by
+<span class="math inline">\(-1\)</span>, resulting in an increment of
+<span class="math inline">\(1\)</span>. This follows the intuition that
+the relative frequency of the element <span
+class="math inline">\(1\)</span> is increased if another element is
+updated with a negative frequency.</p>
+<p>The third column shows the processing of <span
+class="math inline">\(\mathcal{S}_3\)</span> by an thought experiment
+algorithm that alters the counters state based on the updates values
+sign as well as its absolute value. Updating the counter <span
+class="math inline">\((1,1)\)</span> with <span
+class="math inline">\((2,-2)\)</span> at index <span
+class="math inline">\(2\)</span> thus results in <span
+class="math inline">\((1,3)\)</span> via a decrement of <span
+class="math inline">\((-1) \cdot 2\)</span>.</p>
+<p>Each of these experiments fails with intent. The original Misra-Gries
+algorithm returns element <span class="math inline">\(2\)</span> with an
+estimated frequency of <span class="math inline">\(1\)</span> even
+though its absolute frequency <span class="math inline">\(f_2 =
+-3\)</span> is below the one of element <span
+class="math inline">\(1\)</span> with <span class="math inline">\(f_1 =
+1\)</span>. The return value of “Experiment1” of <span
+class="math inline">\(1\)</span> with <span class="math inline">\(f_1 =
+1\)</span> is false since <span class="math inline">\(f_2 = 2\)</span>.
+The same applies to column 3 where <span class="math inline">\(f_1 =
+1\)</span> is below <span class="math inline">\(f_3 = 2\)</span>.</p>
+<div class="center">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th colspan="2" style="text-align: center;">Misra-Gries</th>
+<th colspan="2" style="text-align: center;">Experiment1</th>
+<th colspan="2" style="text-align: center;">Experiment2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><span>2-3</span> (r)<span>4-5</span>
+(r)<span>6-7</span> Index</td>
+<td style="text-align: center;">Counter</td>
+<td style="text-align: center;"><span
+class="math inline">\(\mathcal{S}_1\)</span></td>
+<td style="text-align: center;">Counter</td>
+<td style="text-align: center;"><span
+class="math inline">\(\mathcal{S}_2\)</span></td>
+<td style="text-align: center;">Counter</td>
+<td style="text-align: center;"><span
+class="math inline">\(\mathcal{S}_3\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span
+class="math inline">\(1\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((-,0)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((-,0)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((-,0)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span
+class="math inline">\(2\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((2,-1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((2,-1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((2,-2)\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span
+class="math inline">\(3\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((-,0)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((2,-2)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,2)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((2,3)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,3)\)</span></td>
+<td style="text-align: center;"><span
+class="math inline">\((3,2)\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">return</td>
+<td style="text-align: center;"><span
+class="math inline">\((2,1)\)</span></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"><span
+class="math inline">\((1,1)\)</span></td>
+<td style="text-align: center;"></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<h3 id="subsec:CountSketch">The CountSketch</h3>
+<p>The CountSketch data structure was introduced by Charikar, Chen, and
+Farach-Colton in 2002 <span class="citation"
+data-cites="Chariker2002"></span>. Given a stream <span
+class="math inline">\(S\)</span>, it provides a solution to the <span
+class="smallcaps">Frequency-Estimation</span> problem even if an
+elements frequency is decreased via an update <span
+class="math inline">\(s_i\)</span>. Charikar et al. also present an
+algorithm providing a solution to the <span
+class="smallcaps">Frequent</span> problem based on the CountSketch’s
+frequency estimation. This solution is a set of <span
+class="math inline">\(k\)</span> elements from the stream that, based on
+their frequency estimation, are in <span class="math inline">\(HH\left(
+\frac{1}{k+1}, S \right)\)</span>. Aggregating this set, given a valid
+frequency estimation, is similar to the method described in Section <a
+href="#subsec:MisraGries" data-reference-type="ref"
+data-reference="subsec:MisraGries">3.2.2</a> and is therefore not
+considered here. Consequently, Algorithm <a href="#alg:CountSketch"
+data-reference-type="ref"
+data-reference="alg:CountSketch">[alg:CountSketch]</a> maintains the
+CountSketch data structure and returns an estimation of an elements
+frequency when queried.</p>
+<p>The data structure consists of a two dimensional array and a series
+of randomly chosen hash functions, each from a <span
+class="math inline">\(2\)</span>-universal family. The algorithm’s
+accuracy <span class="math inline">\(\varepsilon\)</span> and
+probability of failure <span class="math inline">\(\delta\)</span> are
+controlled by the two parameters <span class="math inline">\(t\)</span>
+and <span class="math inline">\(b\)</span>. There are <span
+class="math inline">\(h_1, \ldots, h_t\)</span> hash functions mapping
+the <span class="math inline">\(n\)</span> possible elements from the
+universe to hash values in <span class="math inline">\([b]\)</span>.
+There are additional <span class="math inline">\(t\)</span> hash
+functions with <span class="math inline">\(g_j \colon [n] \mapsto \{
+-1,+1 \}\)</span>. The two dimensional array consists of <span
+class="math inline">\(t\)</span> rows and <span
+class="math inline">\(b\)</span> columns and can be considered an a
+array of <span class="math inline">\(t\)</span> hash tables with <span
+class="math inline">\(b\)</span> buckets each.</p>
+<p>In the turnstile model the <span class="math inline">\(i\)</span>-th
+update to <span class="math inline">\(S\)</span> is given as the <span
+class="math inline">\(2\)</span>-tuple <span class="math inline">\(s_i =
+(e_i, c_i)\)</span>. This updates the implicitly defined frequency
+vector <span class="math inline">\(\bm{f}(S) = (f_1, \ldots,
+f_n)\)</span> so that <span class="math inline">\(f_{e_i} = f_{e_i} +
+c_i\)</span>. The total frequency of element <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\(S\)</span> is then the sum of all updates over the
+length of the stream <span class="math inline">\(m\)</span>. In symbols
+this equates to <span class="math display">\[\label{eq:elementSum}
+    f_e = \sum \{ c_i \mid s_i = (e_i, c_i) \text{ and } i \in [m]
+\}.\]</span> Each of the <span class="math inline">\(t\)</span> hash
+tables is maintained as follows: The updates key is hashed into a bucket
+in <span class="math inline">\([b]\)</span> via <span
+class="math inline">\(h_j(e_i)\)</span>. The value of that bucket is
+updated by adding <span class="math inline">\(c_i\)</span> multiplied by
+a random sign generated through <span
+class="math inline">\(g_j(e_i)\)</span>.</p>
+<p>Every hash table <span class="math inline">\(C[j][]\)</span> with
+<span class="math inline">\(j\)</span> in <span
+class="math inline">\([t]\)</span> then holds a representation of the
+stream’s data that can be queried to return an individual elements
+frequency estimate <span class="math inline">\(f_e^* = g_j(e) \cdot
+C[j][h_j(e)]\)</span>. This value can be regarded as an basic unbiased
+estimator with <span class="math inline">\(E\left[ f_e^* \right] =
+f_e\)</span>. To reduce the variance of the result, <span
+class="math inline">\(t\)</span> identical data structures with
+different random hash functions are maintained. The median over these
+<span class="math inline">\(t\)</span> different estimates is returned.
+The guarantees that are achieved for this final result makes it an <span
+class="math inline">\((\varepsilon, \delta)\)</span>-estimation of <span
+class="math inline">\(f_e\)</span>. The CountSketch data structure and
+the processing of a token from the stream is visualized in Figure <a
+href="#fig:CountSketch" data-reference-type="ref"
+data-reference="fig:CountSketch">3.3</a>.</p>
+<figure id="fig:CountSketch">
+
+<figcaption>The CountSketch Data Structure <span id="fig:CountSketch"
+data-label="fig:CountSketch"></span></figcaption>
+</figure>
+<div class="algorithm">
+<p><span class="math inline">\(C[1 \ldots t][1 \ldots b] \gets
+\bm{0}\)</span> Choose random <span class="math inline">\(h_1, \ldots,
+h_t \colon [n] \mapsto [b]\)</span> Choose random <span
+class="math inline">\(g_1, \ldots, g_t \colon [n] \mapsto \{ -1,+1
+\}\)</span></p>
+</div>
+<div id="lem:estCountSketch" class="lemma">
+<p><strong>Lemma 3.1</strong>. <em>Let <span class="math inline">\((a,
+c)\)</span> be a fixed token in <span class="math inline">\(S\)</span>
+with <span class="math inline">\(a\)</span> in <span
+class="math inline">\([n]\)</span> and let <span
+class="math inline">\(f_a\)</span> be the tokens true frequency in a
+stream <span class="math inline">\(S\)</span>. Given a CountSketch data
+structure <span class="math inline">\(C\)</span>, that was maintained
+over <span class="math inline">\(S\)</span>, each row <span
+class="math inline">\(C[j][h_j(a)]\)</span> with <span
+class="math inline">\(j\)</span> in <span
+class="math inline">\([t]\)</span> gives an unbiased estimator <span
+class="math inline">\(f_a^*\)</span> for <span
+class="math inline">\(f_a\)</span>.</em></p>
+</div>
+<div class="proof">
+<p><em>Proof.</em> Let <span class="math inline">\(s_i = (e_i,
+c_i)\)</span> be an arbitrary token from the stream for all <span
+class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span>. The output for query <span
+class="math inline">\(a\)</span> is, according to Algorithm <a
+href="#alg:CountSketch" data-reference-type="ref"
+data-reference="alg:CountSketch">[alg:CountSketch]</a>, given as <span
+class="math display">\[f_{a}^* = g_j(a) \cdot C[j][h_j(a)].\]</span> A
+token alters the bucket <span class="math inline">\(h_j(a)\)</span> of
+hash table <span class="math inline">\(j\)</span> if and only if <span
+class="math inline">\(h_j(e_i) = h_j(a)\)</span>. This occurs if either
+the keys <span class="math inline">\(e_i\)</span> and <span
+class="math inline">\(a\)</span> are equal or if <span
+class="math inline">\(h_j()\)</span> produces a collision for these
+values. Let now <span class="math inline">\(Y_e\)</span> be an indicator
+random variable for this event, i.e., <span class="math inline">\(Y_e =
+1\)</span> iff <span class="math inline">\(h_j(e_i) = h_j(a)\)</span>
+and else <span class="math inline">\(Y_e = 0\)</span>. The value in
+bucket <span class="math inline">\(C[j][h_j(a)]\)</span> is the sum of
+<span class="math inline">\(g_j(e_i) \cdot c_i\)</span> over all <span
+class="math inline">\(i\)</span> in <span
+class="math inline">\([m]\)</span>, where <span
+class="math inline">\(Y_e = 1\)</span>, thus <span
+class="math display">\[C[j][h_j(a)] = \sum_{i = 1}^m c_i \cdot g_j(e_i)
+\cdot Y_e.\]</span> Since <span class="math inline">\(g_j(e_i)\)</span>
+and <span class="math inline">\(Y_e\)</span> are constant for all token
+<span class="math inline">\(s_i\)</span> with the same key from <span
+class="math inline">\([n]\)</span> and with the result from <a
+href="#eq:elementSum" data-reference-type="ref"
+data-reference="eq:elementSum">[eq:elementSum]</a> this can be
+rearranged as a sum of an elements frequency over all <span
+class="math inline">\(e\)</span> in <span
+class="math inline">\([n]\)</span>: <span
+class="math display">\[C[j][h_j(a)] = \sum_{e = 1}^n f_{e} \cdot g_j(e)
+\cdot Y_e.\]</span> Applying this to the reported estimator yields <span
+class="math display">\[f_a^* = g_j(a) \cdot \sum_{e=1}^n g_j(e) \cdot
+f_{e} \cdot Y_e = \sum_{e=1}^n g_j(a) \cdot g_j(e) \cdot f_{e} \cdot
+Y_e.\]</span> For the case that <span class="math inline">\(e =
+a\)</span>, <span class="math inline">\(g_j(e) = g_j(a)\)</span>, <span
+class="math inline">\(h_j(e) = h_j(a)\)</span>, and therefore <span
+class="math inline">\(Y_e = 1\)</span> hold as well. This further
+simplifies the estimator to <span class="math display">\[\begin{aligned}
+\label{eq:CSEstimator}
+        f_a^* &amp;= g_j(a)^2 \cdot f_{a} \cdot Y_e +
+\smashoperator[lr]{\sum_{e \in [n] \setminus \{a\}}} g_j(a) \cdot g_j(e)
+\cdot f_{e} \cdot Y_e \nonumber \\ &amp;= f_a +
+\smashoperator[lr]{\sum_{e \in [n] \setminus \{a\}}} g_j(a) \cdot g_j(e)
+\cdot f_{e} \cdot Y_e.
+    
+\end{aligned}\]</span> The first part of the sum that constitutes the
+estimator is the true frequency <span
+class="math inline">\(f_a\)</span>. The remaining part of the sum can
+only contribute to the estimate if the hash function <span
+class="math inline">\(h_j()\)</span> produces a collision since this
+would yield <span class="math inline">\(Y_e = 1\)</span> and therefore a
+nonzero addend. The probability for this event can be considered small
+and is, in expectation, irrelevant. The hash function <span
+class="math inline">\(g_j()\)</span> is drawn from a <span
+class="math inline">\(2\)</span>-universal family, resulting in an
+expected value for both <span class="math inline">\(g_j(a)\)</span> and
+<span class="math inline">\(g_j(e)\)</span> of zero since <span
+class="math inline">\(E\left[ g_j(a) \right] = E\left[ g_j(e) \right] =
+\frac{-1}{2} + \frac{1}{2} = 0\)</span>. With the independence of <span
+class="math inline">\(h_j\)</span> and <span
+class="math inline">\(g_j\)</span> and the linearity of expectation this
+proves <span class="math inline">\(f_a^*\)</span> to be an unbiased
+estimator of <span class="math inline">\(f_a\)</span>: <span
+class="math display">\[\begin{aligned}
+        E\left[ f_a^* \right] &amp;= E\left[ f_a \right] +
+\smashoperator[lr]{\sum_{e \in [n] \setminus \{a\}}} E\left[ g_j(a)
+\right] \cdot E\left[ g_j(e) \right] \cdot E\left[ f_{e} \right] \cdot
+E\left[ Y_e \right] = f_a + \smashoperator[lr]{\sum_{e \in [n] \setminus
+\{a\}}} 0 \cdot 0 \cdot f_{e} \cdot \left[ Y_e \right]\\ &amp;= f_a.
+    
+\end{aligned}\]</span> ◻</p>
+</div>
+<p>The following Lemma makes use of the notation of vector norms. In
+particular the <span class="math inline">\(\ell_2\)</span>-norm, also
+known as the Euclidiean norm, will be used.</p>
+<div id="def:vectorNorm" class="definition">
+<p><strong>Definition 3.11</strong>. <em>Let <span
+class="math inline">\(p \geq 1\)</span> be a real number and let <span
+class="math inline">\(\bm{x} = (x_1, \ldots, x_n)\)</span> be a vector.
+The <span class="math inline">\(\ell_p\)</span>-norm of <span
+class="math inline">\(\bm{x}\)</span> is defined as <span
+class="math display">\[\|\bm{x}\|_p = \left( \sum_{i = 1}^n
+\left|x_i\right|^p \right)^{\frac{1}{p}}\]</span></em></p>
+</div>
+<p>The <span class="math inline">\(\ell_p\)</span>-norm of the frequency
+vector <span class="math inline">\(\bm{f}(S)\)</span> of a stream <span
+class="math inline">\(S\)</span> is closely related to the <span
+class="math inline">\(p\)</span>-th frequency moment <span
+class="math inline">\(F_p(S)\)</span> of that stream, as per
+Definition <a href="#def:FM" data-reference-type="ref"
+data-reference="def:FM">3.8</a>. In the cash register or the strict
+turnstile model <span class="math display">\[\|\bm{f}(S)\|_p^p =
+F_p(S)\]</span> holds in general, whereas in the non-strict turnstile
+model negative frequencies are possible. The above is therefore only
+true if <span class="math inline">\(p\)</span> is a multiple of two. In
+any model the second frequency moment is then given as <span
+class="math inline">\(\|\bm{f}(S)\|_2^2 = F_2(S)\)</span>.</p>
+<div id="lem:varCountSketch" class="lemma">
+<p><strong>Lemma 3.2</strong>. <em>The basic estimator <span
+class="math inline">\(f_a^*\)</span> obtained through Lemma <a
+href="#lem:estCountSketch" data-reference-type="ref"
+data-reference="lem:estCountSketch">3.1</a> provides a solution to the
+<span class="smallcaps">Frequent-Estimation</span> problem. The
+probability that the estimated frequency of an element <span
+class="math inline">\(a\)</span> is within a confidence interval of size
+<span class="math inline">\(\|\bm{f}_{-a}\|_2\)</span> around the true
+value is <span class="math inline">\(\frac{1}{b}\)</span>.</em></p>
+</div>
+<p>The variable <span class="math inline">\(b\)</span> determines the
+number of buckets in the hash table. The probability that an estimate
+returned by the CountSketch data structure is not within the confidence
+interval is therefore a function of the size of the hash table and the
+data structure as a whole.</p>
+<div class="proof">
+<p><em>Proof.</em> With the variance of a constant being zero. The
+variance of the estimator <span class="math inline">\(f_a^*\)</span> in
+Equation <a href="#eq:CSEstimator" data-reference-type="ref"
+data-reference="eq:CSEstimator">[eq:CSEstimator]</a> is given as <span
+class="math display">\[Var \left[ f_a^* \right] = 0 + Var\left[
+\smashoperator[r]{\sum_{e \in [n] \setminus \{a\}}} g_j(a) \cdot g_j(e)
+\cdot f_{e} \cdot Y_e \right] = Var\left[ g_j(a)
+\smashoperator[lr]{\sum_{e \in [n] \setminus \{a\}}} g_j(e) f_{e}
+Y_e\right].\]</span> The variance of a random variable <span
+class="math inline">\(X\)</span> is defined as <span
+class="math inline">\(Var \left[ X \right] = E\left[ X^2\right] -
+E\left[ X\right]^2\)</span>. The multinomial theorem states that the
+exponentiation by two of a sum over <span
+class="math inline">\(n\)</span> arbitrary addends <span
+class="math inline">\(x_i\)</span> expands as: <span
+class="math inline">\(\left(\sum_{i \in [n]} x_i\right)^2 = \sum_{i \in
+[n]} x_i^2 + 2 \sum_{i,j \in [n]} x_i x_j\)</span>, where <span
+class="math inline">\(i \neq j\)</span>. Applying this to the above
+yields <span class="math display">\[\label{eq:varCountSketch1}
+\begin{aligned}
+        Var \left[ f_a^* \right] = {} &amp; E\left[ g_j(a)^2
+\smashoperator[lr]{\sum_{e \in [n] \setminus \{a\}}} g_j(e)^2
+f_{e}^2  Y_e^2 + 2 \cdot \smashoperator[lr]{\sum_{\substack{e,g \in [n]
+\setminus \{a\} \\ e \neq g}}} g_j(e) g_j(g) f_e f_g Y_e Y_g \right] \\
+        &amp;- E\left[ g_j(a) \smashoperator[lr]{\sum_{e \in [n]
+\setminus \{a\}}} g_j(e) f_{e} Y_e \right]^2.
+\end{aligned}\]</span></p>
+<p>This can be simplified with the following facts. The hash function
+<span class="math inline">\(g_j()\)</span> produces values in <span
+class="math inline">\(\{-1,+1\}\)</span>. Therefore <span
+class="math inline">\(g_j(\cdot)^2 = 1\)</span> holds for any input.
+<span class="math inline">\(Y_e\)</span> is an indicator variable for
+“<span class="math inline">\(h_j(e) = h_j(a)\)</span>”, hence <span
+class="math display">\[E\left[ Y_e \right] = Pr\left[ h_j(e) =
+h_j(a)\right] \cdot 1 + \left(1-Pr\left[ h_j(e) = h_j(a)\right]\right)
+\cdot 0.\]</span> With <span class="math inline">\(1^2 = 1\)</span> the
+same holds for <span class="math inline">\(E\left[ Y_e^2
+\right]\)</span>. The probability of a collision in <span
+class="math inline">\(h_j()\)</span> is given as <span
+class="math inline">\(\frac{1}{b}\)</span> since any <span
+class="math inline">\(h_j()\)</span> is drawn from a <span
+class="math inline">\(2\)</span>-universal family. This results in <span
+class="math display">\[E\left[ Y_e^2 \right] = E\left[ Y_e \right] =
+Pr\left[ h_j(e) = h_j(a)\right] = \frac{1}{b}.\]</span> With <span
+class="math inline">\(E\left[g_j(\cdot)\right] = 0\)</span> already
+established, the variance of the basic estimator can be simplified from
+equation <a href="#eq:varCountSketch1" data-reference-type="ref"
+data-reference="eq:varCountSketch1">[eq:varCountSketch1]</a>: <span
+class="math display">\[\label{eq:varCountSketch2}
+    Var \left[ f_a^* \right] = \smashoperator[lr]{\sum_{e \in [n]
+\setminus \{a\}}} f_e^2 \cdot \frac{1}{b} = \frac{\|\bm{f}(S)\|_2^2 -
+f_a^2}{b}.\]</span></p>
+<p>Let <span class="math inline">\(\bm{f}_{-a}\)</span> denote a
+variation of the frequency vector <span
+class="math inline">\(\bm{f}\)</span> where the component <span
+class="math inline">\(f_a\)</span> was set to zero regardless of its
+original value. The numerator of the variance then becomes <span
+class="math inline">\(\|\bm{f}(S)\|_2^2 - f_a^2 =
+\|\bm{f}_{-a}\|_2^2\)</span>. This result can now be used to give a
+confidence interval for the estimator and the associated probability of
+failure using Chebyshev’s inequality: <span
+class="math display">\[\begin{aligned}
+        Pr\left[\left|f_a^* - E\left[f_a^*\right]\right| \geq
+\varepsilon \right] &amp;= Pr\left[\left|f_a^* - f_a\right| \geq
+\|\bm{f}_{-a}\|_2 \right] \\
+        &amp;\leq \frac{Var\left[f_a^*\right]}{\|\bm{f}_{-a}\|_2^2} =
+\frac{1}{b}.
+    \end{aligned}\]</span></p>
+<p>This proves Lemma <a href="#lem:varCountSketch"
+data-reference-type="ref"
+data-reference="lem:varCountSketch">3.2</a>. ◻</p>
+</div>
+<p>The CountSketch data structure consists of <span
+class="math inline">\(t\)</span> identical and independent basic
+estimators described by Lemma <a href="#lem:estCountSketch"
+data-reference-type="ref" data-reference="lem:estCountSketch">3.1</a>
+and <a href="#lem:varCountSketch" data-reference-type="ref"
+data-reference="lem:varCountSketch">3.2</a>. These estimators constitute
+one row each in the two dimensional array of the CountSketch.</p>
+<div class="analysis">
+<p>The CountSketch data structure provides an additive approximation for
+the <span class="smallcaps">Frequent-Estimation</span>. Querying any
+<span class="math inline">\(a\)</span> in <span
+class="math inline">\(j\)</span> yields a result <span
+class="math inline">\(f_a^*\)</span>, such that <span
+class="math inline">\(f_a^*\)</span> is an <span
+class="math inline">\((\varepsilon, \delta)^+\)</span>-approximation of
+<span class="math inline">\(f_a\)</span>. This is achieved by fixing the
+number of buckets of an individual hash table to <span
+class="math inline">\(b = \frac{3}{\varepsilon^2}\)</span> and by
+running <span class="math inline">\(O(\log \frac{1}{\delta})\)</span> of
+these hash tables in parallel. Each of these hash tables is an unbiased
+estimator of <span class="math inline">\(f_a\)</span>, as shown by
+Lemma <a href="#lem:estCountSketch" data-reference-type="ref"
+data-reference="lem:estCountSketch">3.1</a> and Lemma <a
+href="#lem:varCountSketch" data-reference-type="ref"
+data-reference="lem:varCountSketch">3.2</a>. Applying the median trick,
+as described in Section <a href="#subsubsec:MedianTrick"
+data-reference-type="ref"
+data-reference="subsubsec:MedianTrick">3.4.1.1</a> proves</p>
+<p><span class="math display">\[Pr\left[\left|f_a^* - f_a\right| \geq
+\varepsilon\|\bm{f}_{-a}\|_2\right] \leq \delta.\]</span></p>
+<p>There are <span class="math inline">\(t\)</span> hash tables and
+there are <span class="math inline">\(b\)</span> buckets per hash table.
+Each bucket is a binary counter up to <span
+class="math inline">\(m\)</span> – the length of the stream. This
+results in <span class="math inline">\(O(t \cdot b \cdot \log
+m)\)</span> space. Storing <span class="math inline">\(t\)</span>
+independent hash tables is in <span class="math inline">\(O(\log
+n)\)</span> space individually and hence in <span
+class="math inline">\(O(t \cdot \log n)\)</span> in total, according to
+Chakrabarti <span class="citation" data-cites="Chakra2020"></span>. This
+sums up to <span class="math inline">\(O(t b \log m + t \log
+n)\)</span>, and by substituting for <span
+class="math inline">\(t\)</span> and <span
+class="math inline">\(b\)</span> yields</p>
+<p><span class="math display">\[O\left(\frac{1}{\varepsilon^2} \log
+\left(\frac{1}{\delta}\right) \cdot \left(\log m + \log
+n\right)\right).\]</span></p>
+<p>Processing and computation times can be considered constant in the
+average case, due to the use of hash functions.</p>
+</div>
+<h1 id="concluding-remarks">Concluding Remarks</h1>
+<p>This thesis aimed to provide insight into the vast field of streaming
+and randomized algorithms. With a general survey of past and current
+research being clearly out of scope, the focus was quickly laid onto the
+very beginning of the study of data streams. The fundamentally important
+problem of frequency estimation in sublinear space evolved to be the
+common thread for this thesis. It was used to apply essential results
+from the statistics field, to derive more advanced findings like the
+universal Chernoff bounds and the median trick, and also to comprehend a
+common recipe for analysing and designing randomized algorithms.</p>
+<p>Frequency estimation caused this work to move from deterministic and
+exact results to amortized, asymptotic, and probabilistic ones. It was
+used to develop the need for “randomness” and for algorithms that
+appeared to be doing almost nothing. It provided insights into adjacent
+problems and fields. Links between frequency moments and frequency
+estimation, between data structures and data representation were
+discovered.</p>
+<p>While being successful in providing guidance and entrances, the
+problem of frequency estimations in the streaming scenario is far from
+being exhausted. None of the discussed algorithms were optimal and
+almost no provable lower bounds could be investigated. Interesting
+challenges remain ahead.</p>
+</body>
+</html>

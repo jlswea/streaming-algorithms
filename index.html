@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Streaming Algorithms - Introduction</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css" />
+  <script
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"
+  type="text/javascript"></script>
+</head>
+<body><img src="data-stream.png" alt="Cover" style="max-width:100%;margin-bottom:2em;">
+<header id="title-block-header">
+<h1 class="title">Streaming Algorithms - Introduction</h1>
+</header>
+<h1 id="introduction">Introduction</h1>
+<p>The relatively new field of Data Streaming Algorithms in Computer
+Science is concerned with studying, developing and improving algorithms
+that work on data streams as their input.</p>
+<p>A data stream is defined as “a sequence of digitally encoded used to
+represent information in transmission”(<a
+href="https://www.its.bldrdoc.gov/fs-1037/dir-010/_1451.htm">Federal
+Standard 1037C</a>). The need to process data as a stream rather than as
+a static set can result from either:</p>
+<ol>
+<li><p>The data being too large to practically store on any currently
+accessible storage media, or</p></li>
+<li><p>the data doesn’t exist as a set (yet) but is being generated over
+a non deterministic time horizon.</p></li>
+</ol>
+<p>The first point especially applies to computing devices on the edge
+like IP-routers, IoT-devices or even satellites. For these devices it
+might be desirable or even necessary to process data locally while also
+being resource constrained in terms of storage and/or bandwidth.</p>
+<p>Furthermore, a data stream is also characterized by the data input
+arriving at such a high rate that it stresses current communication and
+computing infrastructure. More formally this means that any data stream
+algorithm has to cope with at least one of the following three parts of
+the currently available Transmission, Computation, and Storage (TCS)
+capacity:</p>
+<ul>
+<li><p>Transmission (T) of the complete data set is not
+possible</p></li>
+<li><p>Computation (C) of some desired output is not possible at the
+rate the input is presented</p></li>
+<li><p>Storage (S) of the complete data either temporarily for further
+analysis or long term is not possible</p></li>
+</ul>
+<p>It follows directly from these TCS constraints, that streaming
+algorithms must operate on sublinear space and time complexity. This can
+be described more formally with the following model for data
+streams.</p>
+<h2 id="data-stream-model">Data Stream Model</h2>
+<p>A data stream describes a signal <span
+class="math inline">\(S\)</span> that is in turn comprised of a sequence
+of items <span class="math inline">\(s_i\)</span>:</p>
+<p><span class="math display">\[S = s_1, s_2, s_3, ..., s_m,
+...\]</span></p>
+<p>Each <span class="math inline">\(s_i\)</span> is in universe <span
+class="math inline">\(U\)</span> with <span class="math inline">\(|U| =
+n\)</span>, i.e <span class="math inline">\(U\)</span> represents <span
+class="math inline">\(n\)</span> possible values for each <span
+class="math inline">\(s_i\)</span>. The index <span
+class="math inline">\(i\)</span> represents the sequential order at
+which the items are conceived by algorithm <span
+class="math inline">\(A\)</span>. This order can also be interpreted as
+time, implying <span class="math inline">\(S_i\)</span> to be the signal
+<span class="math inline">\(S\)</span> at time <span
+class="math inline">\(i\)</span> after item <span
+class="math inline">\(s_i\)</span> was processed by the algorithm. <span
+class="math inline">\(A\)</span> takes <span
+class="math inline">\(S\)</span> as input and computes a function <span
+class="math inline">\(f\)</span> of <span
+class="math inline">\(S\)</span>, i.e. <span class="math inline">\(A: S
+\mapsto f(S)\)</span>.</p>
+<p>Building on this common foundation, there are three main models for
+data streams. They vary in the way <span
+class="math inline">\(s_i\)</span>’s are interpreted and how they
+describe <span class="math inline">\(S\)</span> in the aggregate:</p>
+<ul>
+<li><p>Time Series Model: The signal <span
+class="math inline">\(S\)</span> takes the value of an item <span
+class="math inline">\(s\)</span> until the next item arrives. For every
+<span class="math inline">\(i \in \mathbb{N}:S_i = s_i\)</span></p></li>
+<li><p>Cash Register Model: Here <span
+class="math inline">\(s_i\)</span>’s are increments to a given segment
+<span class="math inline">\(j\)</span> of <span
+class="math inline">\(S\)</span>: <span class="math inline">\(s_i = (j,
+I_i)\)</span> with <span class="math inline">\(I_i \geq 0\)</span> and
+<span class="math inline">\(S_i[j] = S_{i-1}[j] + I_i\)</span>. Multiple
+<span class="math inline">\(s_i\)</span>’s can increment the same
+segment <span class="math inline">\(S[j]\)</span></p></li>
+<li><p>Turnstile Model: This is similar to the Cash Register Model but
+an item <span class="math inline">\(s_i\)</span> contains an update
+<span class="math inline">\(U_i\)</span> that is either <span
+class="math inline">\(positive\)</span> or <span
+class="math inline">\(negative\)</span>: <span class="math inline">\(s_i
+= (j, U_i)\)</span> with <span class="math inline">\(S_i[j] = S_{i-1}[j]
++ U_i\)</span></p></li>
+</ul>
+<h2 id="complexity-requirements">Complexity Requirements</h2>
+<p>To satisfy the TCS constraints above the following conditions must
+hold in a streaming scenario:</p>
+<ol>
+<li><p><span class="math inline">\(A \in o(n)\)</span> as the complete
+data cannot be stored, hence <span class="math inline">\(|U| =
+n\)</span> is a upper bound for space</p></li>
+<li><p>Processing time for every item <span
+class="math inline">\(s_i\)</span> must be in <span
+class="math inline">\(o(min(t_i))\)</span> with <span
+class="math inline">\(t_i = time(i) - time(i-1)\)</span> and <span
+class="math inline">\(time()\)</span> being an exact time stamp, to
+guarantee that data stream items are processed as they arrive</p></li>
+</ol>
+<p>The above conditions can be summarized as <span
+class="math inline">\(A \in o(n, t)\)</span> and may also include <span
+class="math inline">\(f(S) \in o(n, t)\)</span>, i.e. the requirement
+for computations on all items to be sublinear in terms of space and
+time. These requirements for sublinearity are often specified to use
+<span class="math inline">\(polylog\)</span> complexity instead where
+<span class="math inline">\(polylog(n, t) = O(log^k(n, t))\)</span> for
+every <span class="math inline">\(k \in \mathbb{N}\)</span>.</p>
+<h2 id="common-techniques">Common Techniques</h2>
+<p>To adhere to these requirements it is common for a streaming
+algorithm to use techniques for reducing the need for space and/or time
+such as Sampling or Sketching. Random Sampling decreases the load on TCS
+systems by simply dropping items <span
+class="math inline">\(s_i\)</span> randomly. With a large enough
+universe <span class="math inline">\(U\)</span> this can still yield
+satisfactory results. In Sketching on the other hand, <span
+class="math inline">\(s_i\)</span>’s are not stored directly but are
+rather used to update a given data structure - also called a
+<em>sketch</em> - that typically contains some form of aggregated
+statistic or information on <span class="math inline">\(S\)</span>.</p>
+<p>While these and other techniques help making difficult computing
+problems possible, they also inadvertently introduce an error <span
+class="math inline">\(\epsilon\)</span>. Therefore most streaming
+algorithms cannot provide exact solutions but rather <span
+class="math inline">\(1+\epsilon\)</span> approximations of the
+problem.</p>
+<hr><p><a href="streaming-algorithms.html">Read the full thesis</a></p></body>
+</html>
